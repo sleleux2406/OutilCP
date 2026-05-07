@@ -66,9 +66,23 @@ export function TestRunner({ testRunId, ticketKey, cases, onFinished }: Props) {
           try {
             const url = await uploadScreenshot(screenshot);
             if (url) screenshotUrl = url;
+            else {
+              // uploadScreenshot a retourné null (S3 non configuré en dev)
+              // → on continue sans screenshot, avec un avertissement
+              toast.warning("Capture non envoyée (stockage non configuré en dev)", {
+                duration: 3000,
+              });
+            }
           } catch (e) {
-            toast.error(e instanceof Error ? e.message : "Upload impossible");
-            return;
+            // L'upload a échoué — on prévient mais on continue l'enregistrement du KO
+            console.warn("[TestRunner] Upload screenshot échoué:", e);
+            toast.warning(
+              e instanceof Error
+                ? `Upload capture impossible : ${e.message}`
+                : "Upload capture impossible",
+              { duration: 3000 }
+            );
+            // PAS de return → on enregistre quand même le KO, sans screenshot
           }
         }
 

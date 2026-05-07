@@ -1,0 +1,273 @@
+// Prisma schema — QA Platform
+// Documentation: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────────────────────────
+// Enums
+// ─────────────────────────────────────────────────────────────
+
+enum Role {
+  ADMIN
+  PRODUCT_OWNER
+  DEVELOPER
+  TESTER
+}
+
+enum TicketType {
+  EPIC
+  USER_STORY
+  FEATURE
+  TASK
+  BUG
+}
+
+enum TicketStatus {
+  BACKLOG
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  IN_TESTING
+  DONE
+  BLOCKED
+}
+
+enum TestResult {
+  OK
+  KO
+  SKIPPED
+}
+
+// ─────────────────────────────────────────────────────────────
+// Utilisateurs & Authentification
+// ─────────────────────────────────────────────────────────────
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  // Mot de passe hashé avec bcrypt (coût ≥ 12). JAMAIS en clair. [OWASP A02/A07]
+  hashedPassword  String
+  name            String
+  role            Role     @default(DEVELOPER)
+  // Taux horaire en centimes (évite les erreurs de virgule flottante)
+  hourlyRateCents Int      @default(0)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  assignedTickets Ticket[]        @relation("Assignee")
+  createdTickets  Ticket[]        @relation("Creator")
+  timeEntries     TimeEntry[]
+  testExecutions  TestExecution[]
+  testRuns        TestRun[]
+  auditLogs       AuditLog[]
+  sessions        Session[]
+  attachments     Attachment[]
+
+  @@index([role])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Hash du token de session (le token brut n'est jamais stocké) [OWASP A02]
+  tokenHash    String   @unique
+  userAgent    String?
+  ipAddress    String?
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+  revokedAt    DateTime?
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Projet
+// ─────────────────────────────────────────────────────────────
+
+model Project {
+  id          String   @id @default(cuid())
+  key         String   @unique // ex: "PROJ"
+  name        String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tickets Ticket[]
+
+  @@index([key])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Ticket (Epic / Feature / US / Task / Bug)
+// ─────────────────────────────────────────────────────────────
+
+model Ticket {
+  id          String       @id @default(cuid())
+  key         String       @unique // ex: "PROJ-142"
+  title       String
+  description String?
+  type        TicketType
+  status      TicketStatus @default(BACKLOG)
+  priority    Int          @default(3) // 1 (haut) .. 5 (bas)
+
+  // Hiérarchie : adjacency list + path matérialisé pour roll-up rapide
+  parentId String?
+  parent   Ticket?  @relation("TicketHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children Ticket[] @relation("TicketHierarchy")
+  path     String   @default("/") // ex: "/epic-id/feature-id/"
+
+  // Temps
+  estimatedMinutes Int @default(0) // estimation locale (feuille)
+  loggedMinutes    Int @default(0) // temps loggé local (feuille)
+  // Les roll-ups (estimé total, loggé total, coût) sont calculés via la vue SQL ticket_rollup
+
+  // Kanban
+  boardOrder Int @default(0)
+
+  projectId  String
+  project    Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assigneeId String?
+  assignee   User?   @relation("Assignee", fields: [assigneeId], references: [id])
+  creatorId  String
+  creator    User    @relation("Creator", fields: [creatorId], references: [id])
+
+  testCases       TestCase[]
+  testRuns        TestRun[]
+  timeEntries     TimeEntry[]
+  attachments     Attachment[]
+  // Exécution de test qui a généré ce bug (si type = BUG issu d'un KO)
+  sourceExecution TestExecution? @relation("BugFromKo")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([projectId, status, boardOrder])
+  @@index([parentId])
+  @@index([assigneeId])
+  @@index([type])
+  @@index([path])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Temps passé
+// ─────────────────────────────────────────────────────────────
+
+model TimeEntry {
+  id          String   @id @default(cuid())
+  ticketId    String
+  ticket      Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  minutes     Int
+  description String?
+  loggedAt    DateTime @default(now())
+
+  @@index([ticketId])
+  @@index([userId, loggedAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Cas de test
+// ─────────────────────────────────────────────────────────────
+
+model TestCase {
+  id            String   @id @default(cuid())
+  ticketId      String
+  ticket        Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  order         Int      @default(0)
+  title         String
+  preconditions String?
+  steps         String // markdown
+  expected      String // résultat attendu
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  executions TestExecution[]
+
+  @@index([ticketId, order])
+}
+
+model TestRun {
+  id         String    @id @default(cuid())
+  ticketId   String
+  ticket     Ticket    @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  testerId   String
+  tester     User      @relation(fields: [testerId], references: [id])
+  startedAt  DateTime  @default(now())
+  finishedAt DateTime?
+  summary    String? // ex: "3 OK, 1 KO"
+
+  executions TestExecution[]
+
+  @@index([ticketId])
+  @@index([testerId])
+}
+
+model TestExecution {
+  id            String     @id @default(cuid())
+  testRunId     String
+  testRun       TestRun    @relation(fields: [testRunId], references: [id], onDelete: Cascade)
+  testCaseId    String
+  testCase      TestCase   @relation(fields: [testCaseId], references: [id])
+  testerId      String
+  tester        User       @relation(fields: [testerId], references: [id])
+  result        TestResult
+  // Obligatoire si result = KO (voir CHECK constraint dans la migration)
+  comment       String?
+  screenshotUrl String?
+  executedAt    DateTime   @default(now())
+
+  // Si un KO a généré un bug automatiquement, on garde le lien
+  generatedBugId String?  @unique
+  generatedBug   Ticket?  @relation("BugFromKo", fields: [generatedBugId], references: [id])
+
+  @@index([testRunId])
+  @@index([testCaseId, executedAt])
+  @@index([testerId, executedAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Pièces jointes
+// ─────────────────────────────────────────────────────────────
+
+model Attachment {
+  id         String   @id @default(cuid())
+  ticketId   String
+  ticket     Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  url        String
+  mimeType   String
+  sizeBytes  Int
+  uploadedBy String
+  uploader   User     @relation(fields: [uploadedBy], references: [id])
+  uploadedAt DateTime @default(now())
+
+  @@index([ticketId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Audit Log (traçabilité complète — [OWASP A09])
+// ─────────────────────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id])
+  action     String // ex: "TEST_EXECUTION.KO", "BUG.AUTO_CREATED"
+  entityType String
+  entityId   String
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+}

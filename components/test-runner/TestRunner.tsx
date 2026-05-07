@@ -181,9 +181,33 @@ export function TestRunner({ testRunId, ticketKey, cases, onFinished }: Props) {
         <Section label="Résultat attendu">{current.expected}</Section>
 
         {koMode && (
-          <div className="mt-8 space-y-4 border-l-4 border-destructive pl-4">
+          <div
+            className="mt-8 space-y-4 border-l-4 border-destructive pl-4"
+            onPaste={(e) => {
+              // Cherche une image dans le presse-papiers (Ctrl+V)
+              const items = e.clipboardData?.items;
+              if (!items) return;
+              for (const item of items) {
+                if (item.type.startsWith("image/")) {
+                  const blob = item.getAsFile();
+                  if (!blob) continue;
+                  if (blob.size > 5 * 1024 * 1024) {
+                    toast.error("Capture trop volumineuse (max 5 Mo)");
+                    return;
+                  }
+                  // Renomme pour avoir un nom lisible
+                  const ext = blob.type === "image/png" ? "png" : blob.type === "image/jpeg" ? "jpg" : "webp";
+                  const renamed = new File([blob], `capture-${Date.now()}.${ext}`, { type: blob.type });
+                  setScreenshot(renamed);
+                  toast.success("Capture collée");
+                  e.preventDefault();
+                  return;
+                }
+              }
+            }}
+          >
             <Textarea
-              placeholder="Décrivez le comportement observé (obligatoire)"
+              placeholder="Décrivez le comportement observé (obligatoire). Astuce : Ctrl+V pour coller une capture d'écran."
               value={comment}
               onChange={(e) => setComment(e.target.value)}
               rows={5}
@@ -191,24 +215,51 @@ export function TestRunner({ testRunId, ticketKey, cases, onFinished }: Props) {
               maxLength={2000}
               autoFocus
             />
-            <label className="flex items-center gap-2 text-sm cursor-pointer text-muted-foreground hover:text-foreground">
-              <Camera className="w-4 h-4" aria-hidden />
-              <input
-                type="file"
-                accept="image/png,image/jpeg,image/webp"
-                className="hidden"
-                onChange={(e) => {
-                  const f = e.target.files?.[0] ?? null;
-                  if (f && f.size > 5 * 1024 * 1024) {
-                    toast.error("Fichier trop volumineux (max 5 Mo)");
-                    e.target.value = "";
-                    return;
-                  }
-                  setScreenshot(f);
-                }}
-              />
-              {screenshot ? screenshot.name : "Ajouter une capture (optionnel)"}
-            </label>
+
+            {/* Prévisualisation de la capture collée ou sélectionnée */}
+            {screenshot ? (
+              <div className="flex items-start gap-3 p-3 border rounded-md bg-muted/30">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={URL.createObjectURL(screenshot)}
+                  alt="Aperçu de la capture"
+                  className="w-32 h-24 object-cover rounded border"
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium truncate">{screenshot.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {(screenshot.size / 1024).toFixed(0)} Ko · {screenshot.type}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setScreenshot(null)}
+                    className="text-xs text-destructive hover:underline mt-1"
+                  >
+                    Supprimer
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <label className="flex items-center gap-2 text-sm cursor-pointer text-muted-foreground hover:text-foreground">
+                <Camera className="w-4 h-4" aria-hidden />
+                <input
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  className="hidden"
+                  onChange={(e) => {
+                    const f = e.target.files?.[0] ?? null;
+                    if (f && f.size > 5 * 1024 * 1024) {
+                      toast.error("Fichier trop volumineux (max 5 Mo)");
+                      e.target.value = "";
+                      return;
+                    }
+                    setScreenshot(f);
+                  }}
+                />
+                Ajouter une capture (ou Ctrl+V pour coller)
+              </label>
+            )}
+
             {error && (
               <p role="alert" className="text-sm text-destructive">
                 {error}

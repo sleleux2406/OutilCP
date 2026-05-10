@@ -21,9 +21,12 @@ ALTER TABLE "Ticket"
 --                           utilise max(estimated - logged, 0) pour la feuille)
 --   totalProjectedMinutes : loggé + reste → effort total anticipé
 --   varianceMinutes       : projected - estimated → positif = dépassement
---   varianceSign          : 'under' | 'ontrack' | 'over'
 
-CREATE OR REPLACE VIEW ticket_rollup AS
+-- On DROP la vue existante : CREATE OR REPLACE VIEW ne peut pas changer l'ordre
+-- des colonnes, et on insère de nouveaux champs au milieu.
+DROP VIEW IF EXISTS ticket_rollup;
+
+CREATE VIEW ticket_rollup AS
 WITH RECURSIVE descendants AS (
   SELECT
     t.id AS root_id,

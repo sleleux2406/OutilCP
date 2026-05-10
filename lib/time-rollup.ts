@@ -56,8 +56,17 @@ export async function getTicketRollup(ticketId: string): Promise<RollupRow> {
     LIMIT 1
   `;
 
+  // DEBUG temporaire — à retirer après diagnostic
+  console.log("[getTicketRollup] raw row for", ticketId, "=", rows[0]);
+
   const parsed = RollupRowSchema.safeParse(rows[0]);
-  if (parsed.success) return parsed.data;
+  if (parsed.success) {
+    console.log("[getTicketRollup] parsed OK:", parsed.data);
+    return parsed.data;
+  }
+
+  // DEBUG temporaire
+  console.error("[getTicketRollup] parse FAILED:", parsed.error.issues);
 
   // Valeurs neutres : ticket sans descendants ni temps loggé
   return {

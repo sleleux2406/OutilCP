@@ -2,8 +2,6 @@ import type { TicketStatus, TicketType } from "@prisma/client";
 
 /**
  * DTO "léger" d'un ticket utilisé dans le Kanban et les listes.
- * Volontairement plus restreint que le modèle Prisma pour éviter
- * les sérialisations inutiles et les fuites de champs internes.
  */
 export interface KanbanTicket {
   id: string;
@@ -15,13 +13,16 @@ export interface KanbanTicket {
   boardOrder: number;
   estimatedMinutes: number;
   loggedMinutes: number;
+  remainingMinutes: number | null;
   assignee: { id: string; name: string } | null;
   parentKey: string | null;
   testStats?: { passed: number; failed: number; total: number };
   rollup: {
     totalEstimatedMinutes: number;
     totalLoggedMinutes: number;
-    totalCostCents: number;
+    totalRemainingMinutes: number;
+    totalProjectedMinutes: number;
+    varianceMinutes: number;
     progressPercent: number;
   } | null;
 }
@@ -30,7 +31,9 @@ export interface RollupRow {
   ticketId: string;
   totalEstimatedMinutes: number;
   totalLoggedMinutes: number;
-  totalCostCents: number;
+  totalRemainingMinutes: number;
+  totalProjectedMinutes: number;
+  varianceMinutes: number;
   progressPercent: number;
   usCount: number;
   bugCount: number;
@@ -38,29 +41,36 @@ export interface RollupRow {
   taskCount: number;
 }
 
-/** Indique si le ticket est en dérive (temps loggé > temps estimé). */
-export function isOverBudget(rollup: {
-  totalEstimatedMinutes: number;
-  totalLoggedMinutes: number;
-} | null | undefined): boolean {
+/**
+ * Indique si le ticket va dépasser ou dépasse déjà son estimation initiale.
+ * Un ticket est "over budget" si la projection (loggé + reste) > estimation.
+ */
+export function isOverBudget(
+  rollup:
+    | { totalEstimatedMinutes: number; totalProjectedMinutes: number }
+    | null
+    | undefined
+): boolean {
   if (!rollup) return false;
   return (
     rollup.totalEstimatedMinutes > 0 &&
-    rollup.totalLoggedMinutes > rollup.totalEstimatedMinutes
+    rollup.totalProjectedMinutes > rollup.totalEstimatedMinutes
   );
 }
 
 /**
- * Dérive en pourcentage (positif = retard, négatif = avance).
- * 0 si pas d'estimation.
+ * Dérive en pourcentage : (projection − estimation) / estimation × 100.
+ * Positif = dépassement prévu, négatif = marge.
  */
-export function variancePercent(rollup: {
-  totalEstimatedMinutes: number;
-  totalLoggedMinutes: number;
-} | null | undefined): number {
+export function variancePercent(
+  rollup:
+    | { totalEstimatedMinutes: number; totalProjectedMinutes: number }
+    | null
+    | undefined
+): number {
   if (!rollup || rollup.totalEstimatedMinutes === 0) return 0;
   const variance =
-    ((rollup.totalLoggedMinutes - rollup.totalEstimatedMinutes) /
+    ((rollup.totalProjectedMinutes - rollup.totalEstimatedMinutes) /
       rollup.totalEstimatedMinutes) *
     100;
   return Math.round(variance * 10) / 10;

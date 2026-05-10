@@ -11,7 +11,7 @@ import {
   getPriorityMeta,
 } from "@/lib/tickets/metadata";
 import { isTestable } from "@/lib/tickets/hierarchy";
-import { formatEUR, formatDays, formatDateTime, cn } from "@/lib/utils";
+import { formatDays, formatDateTime, cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { TestRunnerLauncher } from "@/components/test-runner/TestRunnerLauncher";
@@ -172,6 +172,7 @@ export default async function TicketPage({ params }: PageProps) {
               description: ticket.description,
               priority: ticket.priority,
               estimatedMinutes: ticket.estimatedMinutes,
+              remainingMinutes: ticket.remainingMinutes,
               assigneeId: ticket.assigneeId,
             }}
             canEdit={canEditStatus}
@@ -242,33 +243,89 @@ export default async function TicketPage({ params }: PageProps) {
             </h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between tabular-nums">
-                <span className="text-muted-foreground">Estime</span>
+                <span className="text-muted-foreground">Estimé initial</span>
                 <span className="font-semibold">
                   {formatDays(rollup.totalEstimatedMinutes)}
                 </span>
               </div>
               <div className="flex justify-between tabular-nums">
-                <span className="text-muted-foreground">Logge</span>
-                <span
-                  className={cn("font-semibold", overBudget && "text-destructive")}
-                >
+                <span className="text-muted-foreground">Loggé</span>
+                <span className="font-semibold">
                   {formatDays(rollup.totalLoggedMinutes)}
                 </span>
               </div>
               <div className="flex justify-between tabular-nums">
-                <span className="text-muted-foreground">Cout</span>
+                <span className="text-muted-foreground">Reste à faire</span>
                 <span className="font-semibold">
-                  {formatEUR(rollup.totalCostCents)}
+                  {formatDays(rollup.totalRemainingMinutes)}
                 </span>
               </div>
+
+              {/* Barre de progression loggé / estimé */}
               <Progress
                 value={rollup.progressPercent}
                 tone={overBudget ? "danger" : "default"}
-                className="mt-2"
+                className="mt-3"
               />
               <p className="text-xs text-muted-foreground text-right tabular-nums">
-                {rollup.progressPercent}%
+                {rollup.progressPercent}% loggé
               </p>
+
+              {/* Bloc dépassement : seulement si projection > estimé */}
+              {rollup.totalEstimatedMinutes > 0 && (
+                <div
+                  className={cn(
+                    "mt-3 rounded-md border px-3 py-2",
+                    overBudget
+                      ? "border-destructive/40 bg-destructive/10"
+                      : "border-green-500/30 bg-green-500/5"
+                  )}
+                >
+                  <div className="flex justify-between items-baseline tabular-nums">
+                    <span className="text-xs text-muted-foreground">Projection totale</span>
+                    <span
+                      className={cn(
+                        "font-semibold text-sm",
+                        overBudget
+                          ? "text-destructive"
+                          : "text-green-700 dark:text-green-400"
+                      )}
+                    >
+                      {formatDays(rollup.totalProjectedMinutes)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between items-baseline tabular-nums mt-1">
+                    <span className="text-xs text-muted-foreground">
+                      {rollup.varianceMinutes > 0
+                        ? "Dépassement prévu"
+                        : rollup.varianceMinutes < 0
+                        ? "Marge"
+                        : "Aligné"}
+                    </span>
+                    <span
+                      className={cn(
+                        "text-xs font-semibold",
+                        overBudget
+                          ? "text-destructive"
+                          : "text-green-700 dark:text-green-400"
+                      )}
+                    >
+                      {rollup.varianceMinutes > 0 && "+"}
+                      {formatDays(Math.abs(rollup.varianceMinutes))}
+                      {rollup.varianceMinutes !== 0 && (
+                        <>
+                          {" · "}
+                          {rollup.varianceMinutes > 0 && "+"}
+                          {Math.round(
+                            (rollup.varianceMinutes / rollup.totalEstimatedMinutes) * 1000
+                          ) / 10}
+                          %
+                        </>
+                      )}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </section>
 

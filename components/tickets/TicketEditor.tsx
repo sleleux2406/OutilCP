@@ -34,6 +34,7 @@ export interface TicketEditorInitial {
   description: string | null;
   priority: number;
   estimatedMinutes: number;
+  remainingMinutes: number | null;
   assigneeId: string | null;
 }
 
@@ -61,6 +62,12 @@ export function TicketEditor({ ticket, canEdit }: Props) {
   const [estimatedDays, setEstimatedDays] = useState(
     ticket.estimatedMinutes > 0 ? String(minutesToDays(ticket.estimatedMinutes)) : ""
   );
+  // Reste à faire : string vide = "non défini" (on enverra null), sinon valeur en jours
+  const [remainingDays, setRemainingDays] = useState(
+    ticket.remainingMinutes !== null
+      ? String(minutesToDays(ticket.remainingMinutes))
+      : ""
+  );
   const [assigneeId, setAssigneeId] = useState<string>(ticket.assigneeId ?? "");
   const [assignableUsers, setAssignableUsers] = useState<
     { id: string; name: string; role: string }[]
@@ -83,6 +90,11 @@ export function TicketEditor({ ticket, canEdit }: Props) {
       setEstimatedDays(
         ticket.estimatedMinutes > 0 ? String(minutesToDays(ticket.estimatedMinutes)) : ""
       );
+      setRemainingDays(
+        ticket.remainingMinutes !== null
+          ? String(minutesToDays(ticket.remainingMinutes))
+          : ""
+      );
       setAssigneeId(ticket.assigneeId ?? "");
     }
   }, [ticket, open]);
@@ -104,6 +116,15 @@ export function TicketEditor({ ticket, canEdit }: Props) {
         ? Math.min(daysToMinutes(dNum), 30 * MINUTES_PER_DAY)
         : 0;
 
+    // Reste : champ vide → null (fallback à estimated-logged), sinon conversion
+    const rNum = parseFloat(remainingDays);
+    const remainingValue =
+      remainingDays.trim() === ""
+        ? null
+        : Number.isFinite(rNum) && rNum >= 0
+        ? Math.min(daysToMinutes(rNum), 30 * MINUTES_PER_DAY)
+        : 0;
+
     const descTrimmed = description.trim();
 
     startTransition(async () => {
@@ -113,6 +134,7 @@ export function TicketEditor({ ticket, canEdit }: Props) {
         description: descTrimmed.length > 0 ? descTrimmed : null,
         priority,
         estimatedMinutes: minutes,
+        remainingMinutes: remainingValue,
         assigneeId: assigneeId || null,
       });
 
@@ -203,7 +225,7 @@ export function TicketEditor({ ticket, canEdit }: Props) {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="edit-estimated">Estimé (jours)</Label>
+                <Label htmlFor="edit-estimated">Estimé initial (jours)</Label>
                 <Input
                   id="edit-estimated"
                   type="number"
@@ -216,6 +238,23 @@ export function TicketEditor({ ticket, canEdit }: Props) {
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">1 jour = 8 heures</p>
               </div>
+            </div>
+
+            <div>
+              <Label htmlFor="edit-remaining">Reste à faire (jours)</Label>
+              <Input
+                id="edit-remaining"
+                type="number"
+                min={0}
+                max={30}
+                step={0.5}
+                value={remainingDays}
+                onChange={(e) => setRemainingDays(e.target.value)}
+                placeholder="Laisser vide pour calcul automatique"
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Ré-estimez le temps restant au fur et à mesure. Vide = estimation − loggé.
+              </p>
             </div>
 
             <div>

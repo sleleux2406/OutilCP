@@ -26,7 +26,7 @@ import {
 import { PRIORITY_META, TICKET_TYPE_META } from "@/lib/tickets/metadata";
 import { daysToMinutes, MINUTES_PER_DAY } from "@/lib/utils";
 
-type CreatableType = "EPIC" | "FEATURE" | "USER_STORY";
+type CreatableType = "EPIC" | "FEATURE" | "USER_STORY" | "TASK";
 
 interface Props {
   projectId: string;
@@ -35,6 +35,17 @@ interface Props {
   /** Pré-sélection : type et parent quand ouvert depuis un contexte précis */
   defaultType?: CreatableType;
   defaultParentId?: string;
+  /**
+   * Si fourni, affiche le parent comme figé (pas de picker, pas de recherche).
+   * Utilisé quand on crée un enfant depuis la page du parent : le parent est
+   * connu à l'avance, pas besoin de le choisir.
+   */
+  lockedParent?: {
+    id: string;
+    key: string;
+    title: string;
+    type: TicketType;
+  };
   /** Rôles permis pour restreindre le dropdown */
   allowedTypes: CreatableType[];
 }
@@ -45,6 +56,7 @@ export function CreateTicketDialog({
   onOpenChange,
   defaultType,
   defaultParentId,
+  lockedParent,
   allowedTypes,
 }: Props) {
   const router = useRouter();
@@ -52,7 +64,9 @@ export function CreateTicketDialog({
   const [type, setType] = useState<CreatableType>(defaultType ?? allowedTypes[0] ?? "EPIC");
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
-  const [parentId, setParentId] = useState<string | null>(defaultParentId ?? null);
+  const [parentId, setParentId] = useState<string | null>(
+    lockedParent?.id ?? defaultParentId ?? null
+  );
   const [priority, setPriority] = useState(3);
   const [estimatedDays, setEstimatedDays] = useState("");
   const [assigneeId, setAssigneeId] = useState<string>("");

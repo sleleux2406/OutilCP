@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Mountain, Users, Bug as BugIcon } from "lucide-react";
 import type { TicketStatus } from "@prisma/client";
-import { cn, formatEUR, formatDays } from "@/lib/utils";
+import { cn, formatDays } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { TICKET_STATUS_META } from "@/lib/tickets/metadata";
@@ -73,14 +73,26 @@ export function EpicRow({ epic, rollup, featureRollups }: Props) {
         </Badge>
 
         <div className="hidden sm:flex items-center gap-6 text-sm tabular-nums shrink-0">
-          <Metric label="Coût" value={formatEUR(rollup?.totalCostCents ?? 0)} />
           <Metric
-            label="Temps"
+            label="Loggé / estimé"
             value={`${formatDays(rollup?.totalLoggedMinutes ?? 0)} / ${formatDays(
               rollup?.totalEstimatedMinutes ?? 0
             )}`}
+          />
+          <Metric
+            label="Projection"
+            value={formatDays(rollup?.totalProjectedMinutes ?? 0)}
             tone={overBudget ? "danger" : "default"}
           />
+          {rollup && rollup.totalEstimatedMinutes > 0 && rollup.varianceMinutes !== 0 && (
+            <Metric
+              label="Dérive"
+              value={`${rollup.varianceMinutes > 0 ? "+" : ""}${formatDays(
+                Math.abs(rollup.varianceMinutes)
+              )}`}
+              tone={overBudget ? "danger" : "default"}
+            />
+          )}
           <div className="w-32">
             <div className="flex justify-between text-xs mb-1">
               <span className="text-muted-foreground">Avancement</span>
@@ -139,9 +151,6 @@ export function EpicRow({ epic, rollup, featureRollups }: Props) {
                     </span>
                   )}
 
-                  <span className="text-xs tabular-nums text-muted-foreground w-24 text-right">
-                    {formatEUR(fr?.totalCostCents ?? 0)}
-                  </span>
                   <span
                     className={cn(
                       "text-xs tabular-nums w-28 text-right",
@@ -150,6 +159,15 @@ export function EpicRow({ epic, rollup, featureRollups }: Props) {
                   >
                     {formatDays(fr?.totalLoggedMinutes ?? 0)} /{" "}
                     {formatDays(fr?.totalEstimatedMinutes ?? 0)}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-xs tabular-nums w-20 text-right",
+                      fOver ? "text-destructive font-medium" : "text-muted-foreground"
+                    )}
+                    title="Projection (loggé + reste)"
+                  >
+                    {formatDays(fr?.totalProjectedMinutes ?? 0)}
                   </span>
                   <span className="text-xs tabular-nums w-12 text-right font-semibold">
                     {fr?.progressPercent ?? 0}%

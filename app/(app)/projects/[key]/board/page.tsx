@@ -41,6 +41,7 @@ export default async function BoardPage({ params }: PageProps) {
         boardOrder: true,
         estimatedMinutes: true,
         loggedMinutes: true,
+        remainingMinutes: true,
         assignee: { select: { id: true, name: true } },
         parent: { select: { key: true } },
       },
@@ -112,6 +113,7 @@ export default async function BoardPage({ params }: PageProps) {
       boardOrder: t.boardOrder,
       estimatedMinutes: t.estimatedMinutes,
       loggedMinutes: t.loggedMinutes,
+      remainingMinutes: t.remainingMinutes,
       assignee: t.assignee,
       parentKey: t.parent?.key ?? null,
       testStats: testsByTicket.get(t.id),
@@ -119,7 +121,9 @@ export default async function BoardPage({ params }: PageProps) {
         ? {
             totalEstimatedMinutes: rollup.totalEstimatedMinutes,
             totalLoggedMinutes: rollup.totalLoggedMinutes,
-            totalCostCents: rollup.totalCostCents,
+            totalRemainingMinutes: rollup.totalRemainingMinutes,
+            totalProjectedMinutes: rollup.totalProjectedMinutes,
+            varianceMinutes: rollup.varianceMinutes,
             progressPercent: rollup.progressPercent,
           }
         : null,

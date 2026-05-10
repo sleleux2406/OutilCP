@@ -264,6 +264,8 @@ const UpdateTicketSchema = z.object({
   description: z.string().trim().max(10_000).nullable().optional(),
   priority: z.number().int().min(1).max(5).optional(),
   estimatedMinutes: z.number().int().min(0).max(60 * 24 * 30).optional(),
+  // Reste à faire : null pour réinitialiser (retour au fallback), sinon >= 0
+  remainingMinutes: z.number().int().min(0).max(60 * 24 * 30).nullable().optional(),
   assigneeId: z.string().cuid().nullable().optional(),
 });
 
@@ -323,6 +325,7 @@ export async function updateTicketAction(
       description: true,
       priority: true,
       estimatedMinutes: true,
+      remainingMinutes: true,
     },
   });
   if (!ticket) return { ok: false, error: "NOT_FOUND" };
@@ -366,6 +369,16 @@ export async function updateTicketAction(
       to: data.estimatedMinutes,
     };
     updateData.estimatedMinutes = data.estimatedMinutes;
+  }
+  if (
+    data.remainingMinutes !== undefined &&
+    data.remainingMinutes !== ticket.remainingMinutes
+  ) {
+    changed.remainingMinutes = {
+      from: ticket.remainingMinutes,
+      to: data.remainingMinutes,
+    };
+    updateData.remainingMinutes = data.remainingMinutes;
   }
   if (data.assigneeId !== undefined && data.assigneeId !== ticket.assigneeId) {
     changed.assigneeId = { from: ticket.assigneeId, to: data.assigneeId };

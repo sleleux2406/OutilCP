@@ -126,9 +126,13 @@ model Ticket {
   path     String   @default("/") // ex: "/epic-id/feature-id/"
 
   // Temps
-  estimatedMinutes Int @default(0) // estimation locale (feuille)
-  loggedMinutes    Int @default(0) // temps loggé local (feuille)
-  // Les roll-ups (estimé total, loggé total, coût) sont calculés via la vue SQL ticket_rollup
+  estimatedMinutes Int  @default(0) // estimation initiale (feuille) - immuable par convention
+  loggedMinutes    Int  @default(0) // temps déjà loggé (feuille)
+  // Reste à faire estimé par le développeur. NULL = pas encore ré-estimé,
+  // dans ce cas on utilise max(estimatedMinutes - loggedMinutes, 0) par défaut.
+  remainingMinutes Int? // saisie manuelle par l'assignee/PO au fil du ticket
+  // Les roll-ups (estimé total, loggé total, reste total, projection) sont
+  // calculés via la vue SQL ticket_rollup
 
   // Kanban
   boardOrder Int @default(0)

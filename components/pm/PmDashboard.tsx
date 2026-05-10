@@ -7,12 +7,12 @@ import {
   Bug as BugIcon,
   CheckCircle2,
   Clock,
-  Euro,
   Target,
+  TrendingUp,
 } from "lucide-react";
 import { KpiCard, type KpiTone } from "./KpiCard";
 import { EpicRow, type EpicForDashboard } from "./EpicRow";
-import { formatEUR, formatDays } from "@/lib/utils";
+import { formatDays } from "@/lib/utils";
 import { sumRollups, formatVariance, getVarianceTone } from "@/lib/rollup-presenter";
 import type { RollupRow } from "@/lib/tickets/types";
 
@@ -53,44 +53,53 @@ export function PmDashboard({ project, epics, rollups, kpis }: Props) {
           <p className="text-xs text-muted-foreground uppercase tracking-wide">Vue Pilotage</p>
           <h1 className="text-2xl font-bold">{project.name}</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            {epics.length} epic{epics.length > 1 ? "s" : ""} · coût total{" "}
-            <span className="font-semibold text-foreground">{formatEUR(totals.totalCostCents)}</span>
+            {epics.length} epic{epics.length > 1 ? "s" : ""} · projection totale{" "}
+            <span className="font-semibold text-foreground">
+              {formatDays(totals.totalProjectedMinutes)}
+            </span>
           </p>
         </header>
 
         {/* KPIs */}
         <section className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           <KpiCard
-            icon={Euro}
-            label="Coût total (loggé)"
-            value={formatEUR(totals.totalCostCents)}
+            icon={Clock}
+            label="Estimé initial"
+            value={formatDays(totals.totalEstimatedMinutes)}
             tone="primary"
           />
           <KpiCard
             icon={Clock}
-            label="Temps loggé/estimé"
+            label="Loggé / estimé"
             value={`${formatDays(totals.totalLoggedMinutes)} / ${formatDays(
               totals.totalEstimatedMinutes
             )}`}
             hint={`${totals.progressPercent}% avancement`}
           />
           <KpiCard
+            icon={TrendingUp}
+            label="Projection (loggé+reste)"
+            value={formatDays(totals.totalProjectedMinutes)}
+            hint={`Reste : ${formatDays(totals.totalRemainingMinutes)}`}
+          />
+          <KpiCard
             icon={Activity}
-            label="Dérive budgétaire"
+            label="Dérive"
             value={formatVariance(totals.variancePercent)}
             tone={varianceTone}
+            hint={
+              totals.varianceMinutes === 0
+                ? "Aligné"
+                : totals.varianceMinutes > 0
+                ? `+${formatDays(totals.varianceMinutes)} de dépassement`
+                : `${formatDays(Math.abs(totals.varianceMinutes))} de marge`
+            }
           />
           <KpiCard
             icon={BugIcon}
             label="Bugs ouverts"
             value={kpis.bugsOpen}
             tone={kpis.bugsOpen > 0 ? "warning" : "success"}
-          />
-          <KpiCard
-            icon={CheckCircle2}
-            label="Bugs résolus"
-            value={kpis.bugsResolved}
-            tone="success"
           />
           <KpiCard
             icon={AlertTriangle}
@@ -131,6 +140,14 @@ export function PmDashboard({ project, epics, rollups, kpis }: Props) {
             )}
           </div>
         </section>
+
+        {/* Note : le KPI "bugs résolus" était peu lisible, on l'a retiré au profit de Dérive */}
+        {kpis.bugsResolved > 0 && (
+          <p className="text-xs text-muted-foreground">
+            <CheckCircle2 className="inline h-3 w-3 mr-1 text-green-600" aria-hidden />
+            {kpis.bugsResolved} bug{kpis.bugsResolved > 1 ? "s" : ""} résolu{kpis.bugsResolved > 1 ? "s" : ""} à ce jour
+          </p>
+        )}
       </div>
     </main>
   );

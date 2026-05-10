@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { ChevronRight, Mountain, Users, Bug as BugIcon } from "lucide-react";
 import type { TicketStatus } from "@prisma/client";
-import { cn, formatEUR, formatHours } from "@/lib/utils";
+import { cn, formatEUR, formatDays } from "@/lib/utils";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { TICKET_STATUS_META } from "@/lib/tickets/metadata";
@@ -76,7 +76,7 @@ export function EpicRow({ epic, rollup, featureRollups }: Props) {
           <Metric label="Coût" value={formatEUR(rollup?.totalCostCents ?? 0)} />
           <Metric
             label="Temps"
-            value={`${formatHours(rollup?.totalLoggedMinutes ?? 0)} / ${formatHours(
+            value={`${formatDays(rollup?.totalLoggedMinutes ?? 0)} / ${formatDays(
               rollup?.totalEstimatedMinutes ?? 0
             )}`}
             tone={overBudget ? "danger" : "default"}
@@ -148,8 +148,8 @@ export function EpicRow({ epic, rollup, featureRollups }: Props) {
                       fOver && "text-destructive font-medium"
                     )}
                   >
-                    {formatHours(fr?.totalLoggedMinutes ?? 0)} /{" "}
-                    {formatHours(fr?.totalEstimatedMinutes ?? 0)}
+                    {formatDays(fr?.totalLoggedMinutes ?? 0)} /{" "}
+                    {formatDays(fr?.totalEstimatedMinutes ?? 0)}
                   </span>
                   <span className="text-xs tabular-nums w-12 text-right font-semibold">
                     {fr?.progressPercent ?? 0}%

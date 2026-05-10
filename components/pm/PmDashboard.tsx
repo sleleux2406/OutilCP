@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import { KpiCard, type KpiTone } from "./KpiCard";
 import { EpicRow, type EpicForDashboard } from "./EpicRow";
-import { formatEUR, formatHours } from "@/lib/utils";
+import { formatEUR, formatDays } from "@/lib/utils";
 import { sumRollups, formatVariance, getVarianceTone } from "@/lib/rollup-presenter";
 import type { RollupRow } from "@/lib/tickets/types";
 
@@ -69,7 +69,7 @@ export function PmDashboard({ project, epics, rollups, kpis }: Props) {
           <KpiCard
             icon={Clock}
             label="Temps loggé/estimé"
-            value={`${formatHours(totals.totalLoggedMinutes)} / ${formatHours(
+            value={`${formatDays(totals.totalLoggedMinutes)} / ${formatDays(
               totals.totalEstimatedMinutes
             )}`}
             hint={`${totals.progressPercent}% avancement`}

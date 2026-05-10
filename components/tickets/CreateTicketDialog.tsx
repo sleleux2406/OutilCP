@@ -24,6 +24,7 @@ import {
   listAssignableUsersAction,
 } from "@/app/actions/tickets";
 import { PRIORITY_META, TICKET_TYPE_META } from "@/lib/tickets/metadata";
+import { daysToMinutes, MINUTES_PER_DAY } from "@/lib/utils";
 
 type CreatableType = "EPIC" | "FEATURE" | "USER_STORY";
 
@@ -53,7 +54,7 @@ export function CreateTicketDialog({
   const [description, setDescription] = useState("");
   const [parentId, setParentId] = useState<string | null>(defaultParentId ?? null);
   const [priority, setPriority] = useState(3);
-  const [estimatedHours, setEstimatedHours] = useState("");
+  const [estimatedDays, setEstimatedDays] = useState("");
   const [assigneeId, setAssigneeId] = useState<string>("");
   const [assignableUsers, setAssignableUsers] = useState<
     { id: string; name: string; role: string }[]
@@ -85,7 +86,7 @@ export function CreateTicketDialog({
     setDescription("");
     setParentId(defaultParentId ?? null);
     setPriority(3);
-    setEstimatedHours("");
+    setEstimatedDays("");
     setAssigneeId("");
   };
 
@@ -100,8 +101,10 @@ export function CreateTicketDialog({
       return;
     }
 
-    const hours = parseFloat(estimatedHours || "0");
-    const minutes = Number.isFinite(hours) ? Math.round(hours * 60) : 0;
+    const daysNum = parseFloat(estimatedDays || "0");
+    const minutes = Number.isFinite(daysNum) && daysNum >= 0 ? daysToMinutes(daysNum) : 0;
+    // Cap serveur = 30 jours = 14400 min ; on bloque d'emblée côté client
+    const cappedMinutes = Math.min(minutes, 30 * MINUTES_PER_DAY);
 
     startTransition(async () => {
       const res = await createTicketAction({
@@ -111,7 +114,7 @@ export function CreateTicketDialog({
         description: description.trim() || undefined,
         parentId: parentId ?? null,
         priority,
-        estimatedMinutes: minutes,
+        estimatedMinutes: cappedMinutes,
         assigneeId: assigneeId || null,
       });
       if (!res.ok) {
@@ -229,17 +232,18 @@ export function CreateTicketDialog({
               </Select>
             </div>
             <div>
-              <Label htmlFor="ticket-estimated">Estimé (heures)</Label>
+              <Label htmlFor="ticket-estimated">Estimé (jours)</Label>
               <Input
                 id="ticket-estimated"
                 type="number"
                 min={0}
-                max={720}
-                step={0.25}
-                value={estimatedHours}
-                onChange={(e) => setEstimatedHours(e.target.value)}
+                max={30}
+                step={0.5}
+                value={estimatedDays}
+                onChange={(e) => setEstimatedDays(e.target.value)}
                 placeholder="0"
               />
+              <p className="text-[10px] text-muted-foreground mt-1">1 jour = 8 heures</p>
             </div>
           </div>
 

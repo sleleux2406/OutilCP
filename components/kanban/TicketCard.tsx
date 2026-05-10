@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { Clock, FlaskConical, User } from "lucide-react";
-import { cn, formatHours } from "@/lib/utils";
+import { cn, formatDays } from "@/lib/utils";
 import { TICKET_TYPE_META, getPriorityMeta } from "@/lib/tickets/metadata";
 import { isOverBudget } from "@/lib/tickets/types";
 import type { KanbanTicket } from "@/lib/tickets/types";
@@ -28,8 +28,8 @@ export function TicketCard({ ticket, currentUserId, isOverlay = false }: Props) 
   const overBudget = isOverBudget(ticket.rollup);
   const priority = getPriorityMeta(ticket.priority);
 
-  const loggedH = formatHours(ticket.rollup?.totalLoggedMinutes ?? ticket.loggedMinutes);
-  const estimatedH = formatHours(ticket.rollup?.totalEstimatedMinutes ?? ticket.estimatedMinutes);
+  const loggedDisplay = formatDays(ticket.rollup?.totalLoggedMinutes ?? ticket.loggedMinutes);
+  const estimatedDisplay = formatDays(ticket.rollup?.totalEstimatedMinutes ?? ticket.estimatedMinutes);
   const progress = ticket.rollup?.progressPercent ?? 0;
 
   return (
@@ -101,10 +101,10 @@ export function TicketCard({ ticket, currentUserId, isOverlay = false }: Props) 
               "flex items-center gap-1 tabular-nums",
               overBudget && "text-destructive font-medium"
             )}
-            title={`${loggedH} loggées / ${estimatedH} estimées`}
+            title={`${loggedDisplay} loggés / ${estimatedDisplay} estimés`}
           >
             <Clock className="w-3 h-3" aria-hidden />
-            {loggedH}/{estimatedH}
+            {loggedDisplay}/{estimatedDisplay}
           </span>
 
           {ticket.testStats && ticket.testStats.total > 0 && (

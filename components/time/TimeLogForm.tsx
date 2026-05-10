@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { logTimeAction } from "@/app/actions/time";
+import { MINUTES_PER_DAY, HOURS_PER_DAY, formatDays } from "@/lib/utils";
 
 interface Props {
   ticketId: string;
@@ -18,35 +19,41 @@ interface Props {
 }
 
 /**
- * Formulaire de log de temps (client). Utilise la Server Action logTimeAction.
- * Validation côté client alignée avec le schéma Zod côté serveur (dernière ligne
- * de défense reste côté serveur).
+ * Formulaire de log de temps. Saisie en jours + heures (1 jour = 8h).
+ * Max 24h par entrée, contrainte alignée avec CHECK SQL côté BDD.
  */
 export function TimeLogForm({ ticketId, onLogged, compact = false }: Props) {
+  const [days, setDays] = useState("");
   const [hours, setHours] = useState("");
-  const [minutes, setMinutes] = useState("");
   const [description, setDescription] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    const h = parseInt(hours || "0", 10);
-    const m = parseInt(minutes || "0", 10);
-    const total = h * 60 + m;
+    const d = parseFloat(days || "0");
+    const h = parseFloat(hours || "0");
 
-    if (!Number.isFinite(total) || total <= 0) {
+    if (!Number.isFinite(d) || !Number.isFinite(h) || d < 0 || h < 0) {
       toast.error("Durée invalide");
       return;
     }
-    if (total > 1440) {
-      toast.error("Maximum 24 heures par entrée");
+
+    // Conversion : 1 jour = 8h, puis total en minutes
+    const totalMinutes = Math.round(d * MINUTES_PER_DAY + h * 60);
+
+    if (totalMinutes <= 0) {
+      toast.error("Saisissez au moins quelques minutes");
+      return;
+    }
+    if (totalMinutes > 1440) {
+      toast.error("Maximum 24 heures (3 jours équivalents) par entrée");
       return;
     }
 
     startTransition(async () => {
       const res = await logTimeAction({
         ticketId,
-        minutes: total,
+        minutes: totalMinutes,
         description: description.trim() || undefined,
       });
       if (!res.ok) {
@@ -59,9 +66,9 @@ export function TimeLogForm({ ticketId, onLogged, compact = false }: Props) {
         toast.error(msg);
         return;
       }
-      toast.success(`Temps logué (${total} min)`);
+      toast.success(`Temps loggé (${formatDays(totalMinutes)})`);
+      setDays("");
       setHours("");
-      setMinutes("");
       setDescription("");
       onLogged?.(res.totalLoggedMinutes);
     });
@@ -74,22 +81,24 @@ export function TimeLogForm({ ticketId, onLogged, compact = false }: Props) {
         <Input
           type="number"
           min={0}
-          max={24}
-          placeholder="h"
-          value={hours}
-          onChange={(e) => setHours(e.target.value)}
+          max={3}
+          step={0.5}
+          placeholder="j"
+          value={days}
+          onChange={(e) => setDays(e.target.value)}
           className="h-7 w-12 text-xs"
-          aria-label="Heures"
+          aria-label="Jours"
         />
         <Input
           type="number"
           min={0}
-          max={59}
-          placeholder="min"
-          value={minutes}
-          onChange={(e) => setMinutes(e.target.value)}
+          max={HOURS_PER_DAY}
+          step={0.25}
+          placeholder="h"
+          value={hours}
+          onChange={(e) => setHours(e.target.value)}
           className="h-7 w-14 text-xs"
-          aria-label="Minutes"
+          aria-label="Heures complémentaires"
         />
         <Button type="submit" size="sm" variant="outline" disabled={isPending} className="h-7 px-2">
           {isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : "Logger"}
@@ -102,33 +111,40 @@ export function TimeLogForm({ ticketId, onLogged, compact = false }: Props) {
     <form onSubmit={submit} className="space-y-3">
       <div className="grid grid-cols-2 gap-2">
         <div>
+          <Label htmlFor={`d-${ticketId}`}>Jours</Label>
+          <Input
+            id={`d-${ticketId}`}
+            type="number"
+            min={0}
+            max={3}
+            step={0.5}
+            value={days}
+            onChange={(e) => setDays(e.target.value)}
+            placeholder="0"
+          />
+        </div>
+        <div>
           <Label htmlFor={`h-${ticketId}`}>Heures</Label>
           <Input
             id={`h-${ticketId}`}
             type="number"
             min={0}
-            max={24}
+            max={HOURS_PER_DAY}
+            step={0.25}
             value={hours}
             onChange={(e) => setHours(e.target.value)}
-          />
-        </div>
-        <div>
-          <Label htmlFor={`m-${ticketId}`}>Minutes</Label>
-          <Input
-            id={`m-${ticketId}`}
-            type="number"
-            min={0}
-            max={59}
-            value={minutes}
-            onChange={(e) => setMinutes(e.target.value)}
+            placeholder="0"
           />
         </div>
       </div>
+      <p className="text-[10px] text-muted-foreground -mt-1">
+        1 jour = {HOURS_PER_DAY}h · maximum 24h par entrée
+      </p>
 
       <div>
-        <Label htmlFor={`d-${ticketId}`}>Description (optionnelle)</Label>
+        <Label htmlFor={`desc-${ticketId}`}>Description (optionnelle)</Label>
         <Textarea
-          id={`d-${ticketId}`}
+          id={`desc-${ticketId}`}
           rows={2}
           maxLength={500}
           value={description}

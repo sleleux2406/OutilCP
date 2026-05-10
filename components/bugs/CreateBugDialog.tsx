@@ -20,6 +20,7 @@ import { Select } from "@/components/ui/select";
 import { ParentPicker } from "./ParentPicker";
 import { createFreeBugAction } from "@/app/actions/bugs";
 import { PRIORITY_META } from "@/lib/tickets/metadata";
+import { daysToMinutes, MINUTES_PER_DAY } from "@/lib/utils";
 
 interface Props {
   projectId: string;
@@ -36,7 +37,7 @@ export function CreateBugDialog({ projectId, open, onOpenChange, defaultParentId
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [priority, setPriority] = useState(3);
-  const [estimatedHours, setEstimatedHours] = useState("");
+  const [estimatedDays, setEstimatedDays] = useState("");
   const [isPending, startTransition] = useTransition();
 
   const reset = () => {
@@ -58,8 +59,11 @@ export function CreateBugDialog({ projectId, open, onOpenChange, defaultParentId
       return;
     }
 
-    const hours = parseFloat(estimatedHours || "0");
-    const minutes = Number.isFinite(hours) ? Math.round(hours * 60) : 0;
+    const daysNum = parseFloat(estimatedDays || "0");
+    const minutes =
+      Number.isFinite(daysNum) && daysNum >= 0
+        ? Math.min(daysToMinutes(daysNum), 30 * MINUTES_PER_DAY)
+        : 0;
 
     startTransition(async () => {
       const res = await createFreeBugAction({
@@ -153,15 +157,15 @@ export function CreateBugDialog({ projectId, open, onOpenChange, defaultParentId
               </Select>
             </div>
             <div>
-              <Label htmlFor="bug-estimated">Estimé (heures)</Label>
+              <Label htmlFor="bug-estimated">Estimé (jours)</Label>
               <Input
                 id="bug-estimated"
                 type="number"
                 min={0}
-                max={720}
-                step={0.25}
-                value={estimatedHours}
-                onChange={(e) => setEstimatedHours(e.target.value)}
+                max={30}
+                step={0.5}
+                value={estimatedDays}
+                onChange={(e) => setEstimatedDays(e.target.value)}
                 placeholder="0"
               />
             </div>

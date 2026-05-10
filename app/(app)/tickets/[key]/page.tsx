@@ -12,7 +12,7 @@ import {
   getPriorityMeta,
 } from "@/lib/tickets/metadata";
 import { isTestable } from "@/lib/tickets/hierarchy";
-import { formatEUR, formatHours, formatDateTime, cn } from "@/lib/utils";
+import { formatEUR, formatDays, formatDateTime, cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { TestRunnerLauncher } from "@/components/test-runner/TestRunnerLauncher";
@@ -200,7 +200,7 @@ export default async function TicketPage({ params }: PageProps) {
               <div className="flex justify-between tabular-nums">
                 <span className="text-muted-foreground">Estime</span>
                 <span className="font-semibold">
-                  {formatHours(rollup.totalEstimatedMinutes)}
+                  {formatDays(rollup.totalEstimatedMinutes)}
                 </span>
               </div>
               <div className="flex justify-between tabular-nums">
@@ -208,7 +208,7 @@ export default async function TicketPage({ params }: PageProps) {
                 <span
                   className={cn("font-semibold", overBudget && "text-destructive")}
                 >
-                  {formatHours(rollup.totalLoggedMinutes)}
+                  {formatDays(rollup.totalLoggedMinutes)}
                 </span>
               </div>
               <div className="flex justify-between tabular-nums">

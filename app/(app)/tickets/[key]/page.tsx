@@ -21,6 +21,7 @@ import { TestCaseList } from "@/components/test-cases/TestCaseList";
 import { TicketStatusPicker } from "@/components/tickets/TicketStatusPicker";
 import { TicketChildren } from "@/components/tickets/TicketChildren";
 import { TicketActionsMenu } from "@/components/tickets/TicketActionsMenu";
+import { TicketEditor } from "@/components/tickets/TicketEditor";
 import { isOverBudget } from "@/lib/tickets/types";
 
 interface PageProps {
@@ -163,21 +164,34 @@ export default async function TicketPage({ params }: PageProps) {
           <span>{formatDateTime(ticket.createdAt)}</span>
         </div>
 
-        {testable && (
-          <div className="pt-2 flex items-center gap-2">
-            <TestRunnerLauncher
-              ticketId={ticket.id}
-              ticketKey={ticket.key}
-              canTest={canTest}
-              hasCases={ticket.testCases.length > 0}
-            />
-            <CreateBugButton
-              projectId={ticket.projectId}
-              defaultParentId={ticket.id}
-              label="Signaler un bug"
-            />
-          </div>
-        )}
+        <div className="pt-2 flex items-center gap-2 flex-wrap">
+          <TicketEditor
+            ticket={{
+              id: ticket.id,
+              title: ticket.title,
+              description: ticket.description,
+              priority: ticket.priority,
+              estimatedMinutes: ticket.estimatedMinutes,
+              assigneeId: ticket.assigneeId,
+            }}
+            canEdit={canEditStatus}
+          />
+          {testable && (
+            <>
+              <TestRunnerLauncher
+                ticketId={ticket.id}
+                ticketKey={ticket.key}
+                canTest={canTest}
+                hasCases={ticket.testCases.length > 0}
+              />
+              <CreateBugButton
+                projectId={ticket.projectId}
+                defaultParentId={ticket.id}
+                label="Signaler un bug"
+              />
+            </>
+          )}
+        </div>
       </header>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

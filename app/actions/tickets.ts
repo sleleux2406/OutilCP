@@ -255,8 +255,150 @@ export async function listAssignableUsersAction(): Promise<{
 }
 
 // ─────────────────────────────────────────────────────────────
-// Changer le statut d'un ticket
+// Mise à jour complète d'un ticket (titre, desc, priorité, estim., assignee)
 // ─────────────────────────────────────────────────────────────
+
+const UpdateTicketSchema = z.object({
+  ticketId: z.string().cuid(),
+  title: z.string().trim().min(3).max(200).optional(),
+  description: z.string().trim().max(10_000).nullable().optional(),
+  priority: z.number().int().min(1).max(5).optional(),
+  estimatedMinutes: z.number().int().min(0).max(60 * 24 * 30).optional(),
+  assigneeId: z.string().cuid().nullable().optional(),
+});
+
+export type UpdateTicketResult =
+  | { ok: true }
+  | {
+      ok: false;
+      error:
+        | "VALIDATION"
+        | "FORBIDDEN"
+        | "NOT_FOUND"
+        | "ASSIGNEE_NOT_FOUND"
+        | "RATE_LIMITED";
+    };
+
+/**
+ * Met à jour les champs éditables d'un ticket.
+ *
+ * Champs NON modifiables ici volontairement :
+ *   - type : structurel, changer le type invalide la hiérarchie (canAttach) et les cas de test
+ *   - parentId : structurel, changement = déplacement dans l'arbre, nécessite recalcul path
+ *   - status : géré par updateTicketStatusAction (UX dédiée + audit spécifique)
+ *   - key / projectId : identifiants permanents
+ *
+ * Sécurité :
+ *   - requireAuth + canEditTicket (RBAC : ADMIN/PO toujours, DEV si assigné/créateur) [A01]
+ *   - Rate-limit 30 updates/5min/user [A07]
+ *   - Zod strict partial (tous champs optionnels pour updates partiels) [A03]
+ *   - Vérification assignee existe [A04]
+ *   - Transaction + audit avec diff [A08/A09]
+ */
+export async function updateTicketAction(
+  input: z.input<typeof UpdateTicketSchema>
+): Promise<UpdateTicketResult> {
+  const session = await requireAuth();
+
+  // Rate-limit
+  const rl = rateLimit(`ticket:update:${session.userId}`, {
+    limit: 30,
+    windowMs: 5 * 60 * 1000,
+  });
+  if (!rl.allowed) return { ok: false, error: "RATE_LIMITED" };
+
+  const parsed = UpdateTicketSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "VALIDATION" };
+  const data = parsed.data;
+
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: data.ticketId },
+    select: {
+      id: true,
+      key: true,
+      projectId: true,
+      assigneeId: true,
+      creatorId: true,
+      title: true,
+      description: true,
+      priority: true,
+      estimatedMinutes: true,
+    },
+  });
+  if (!ticket) return { ok: false, error: "NOT_FOUND" };
+
+  if (!(await canEditTicket(session, ticket))) {
+    return { ok: false, error: "FORBIDDEN" };
+  }
+
+  // Vérifier que l'assignee existe si fourni
+  if (data.assigneeId) {
+    const assignee = await prisma.user.findUnique({
+      where: { id: data.assigneeId },
+      select: { id: true },
+    });
+    if (!assignee) return { ok: false, error: "ASSIGNEE_NOT_FOUND" };
+  }
+
+  // Construire le diff pour l'audit (uniquement les champs réellement modifiés)
+  const changed: Record<string, { from: unknown; to: unknown }> = {};
+  const updateData: Record<string, unknown> = {};
+
+  if (data.title !== undefined && data.title !== ticket.title) {
+    changed.title = { from: ticket.title, to: data.title };
+    updateData.title = data.title;
+  }
+  if (data.description !== undefined && data.description !== ticket.description) {
+    // On ne log pas la description entière dans l'audit (potentiellement volumineuse)
+    changed.description = { from: "[changed]", to: "[changed]" };
+    updateData.description = data.description;
+  }
+  if (data.priority !== undefined && data.priority !== ticket.priority) {
+    changed.priority = { from: ticket.priority, to: data.priority };
+    updateData.priority = data.priority;
+  }
+  if (
+    data.estimatedMinutes !== undefined &&
+    data.estimatedMinutes !== ticket.estimatedMinutes
+  ) {
+    changed.estimatedMinutes = {
+      from: ticket.estimatedMinutes,
+      to: data.estimatedMinutes,
+    };
+    updateData.estimatedMinutes = data.estimatedMinutes;
+  }
+  if (data.assigneeId !== undefined && data.assigneeId !== ticket.assigneeId) {
+    changed.assigneeId = { from: ticket.assigneeId, to: data.assigneeId };
+    updateData.assigneeId = data.assigneeId;
+  }
+
+  // Aucun changement → no-op (on retourne ok sans update ni audit)
+  if (Object.keys(updateData).length === 0) {
+    return { ok: true };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.ticket.update({
+      where: { id: data.ticketId },
+      data: updateData,
+    });
+    await tx.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "TICKET.UPDATED",
+        entityType: "Ticket",
+        entityId: data.ticketId,
+        metadata: { changed },
+      },
+    });
+  });
+
+  revalidatePath(`/tickets/${ticket.key}`);
+  revalidatePath(`/projects/[key]/board`, "page");
+  revalidatePath(`/projects/[key]/overview`, "page");
+
+  return { ok: true };
+}
 
 const UpdateStatusSchema = z.object({
   ticketId: z.string().cuid(),

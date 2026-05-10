@@ -17,28 +17,37 @@ import type { RollupRow } from "@/lib/tickets/types";
 
 /**
  * Schéma Zod pour valider les lignes retournées par Postgres.
- * Protection contre une modification de la vue qui casserait les types.
+ * Robustesse : PostgreSQL + le driver `pg` peuvent retourner des nombres
+ * sous 4 formes selon le type SQL et la version :
+ *   - number (petits entiers natifs)
+ *   - bigint (SUM sur int → bigint en JavaScript)
+ *   - string (numeric / decimal → string pour préserver la précision)
+ *   - Prisma.Decimal (objet avec toString())
+ * On normalise tout en `number` JavaScript via toNumber().
  */
+function toNumber(v: unknown): number {
+  if (typeof v === "number") return v;
+  if (typeof v === "bigint") return Number(v);
+  if (typeof v === "string") return parseFloat(v);
+  if (v && typeof v === "object" && "toString" in v) {
+    const n = parseFloat(String(v));
+    if (!Number.isNaN(n)) return n;
+  }
+  return 0;
+}
+
+const numericLike = z.unknown().transform(toNumber);
+
 const RollupRowSchema = z.object({
   ticketId: z.string(),
-  // Postgres SUM() peut retourner un bigint même après ::int selon le driver.
-  // On accepte number ET bigint, puis on transforme en number.
-  totalEstimatedMinutes: z
-    .union([z.number(), z.bigint()])
-    .transform((v) => (typeof v === "bigint" ? Number(v) : v)),
-  totalLoggedMinutes: z
-    .union([z.number(), z.bigint()])
-    .transform((v) => (typeof v === "bigint" ? Number(v) : v)),
-  totalCostCents: z.union([z.number(), z.bigint()]).transform((v) =>
-    typeof v === "bigint" ? Number(v) : v
-  ),
-  usCount: z.union([z.number(), z.bigint()]).transform((v) => Number(v)),
-  bugCount: z.union([z.number(), z.bigint()]).transform((v) => Number(v)),
-  featureCount: z.union([z.number(), z.bigint()]).transform((v) => Number(v)),
-  taskCount: z.union([z.number(), z.bigint()]).transform((v) => Number(v)),
-  progressPercent: z.union([z.number(), z.string()]).transform((v) =>
-    typeof v === "string" ? parseFloat(v) : v
-  ),
+  totalEstimatedMinutes: numericLike,
+  totalLoggedMinutes: numericLike,
+  totalCostCents: numericLike,
+  usCount: numericLike,
+  bugCount: numericLike,
+  featureCount: numericLike,
+  taskCount: numericLike,
+  progressPercent: numericLike,
 });
 
 /**
@@ -56,19 +65,10 @@ export async function getTicketRollup(ticketId: string): Promise<RollupRow> {
     LIMIT 1
   `;
 
-  // DEBUG temporaire — à retirer après diagnostic
-  console.log("[getTicketRollup] raw row for", ticketId, "=", rows[0]);
-
   const parsed = RollupRowSchema.safeParse(rows[0]);
-  if (parsed.success) {
-    console.log("[getTicketRollup] parsed OK:", parsed.data);
-    return parsed.data;
-  }
+  if (parsed.success) return parsed.data;
 
-  // DEBUG temporaire
-  console.error("[getTicketRollup] parse FAILED:", parsed.error.issues);
-
-  // Valeurs neutres : ticket sans descendants ni temps loggé
+  // Valeurs neutres : ticket absent de la vue
   return {
     ticketId,
     totalEstimatedMinutes: 0,

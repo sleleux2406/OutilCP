@@ -6,6 +6,7 @@ import { requireAuth } from "@/lib/auth";
 import { getProjectRollups } from "@/lib/time-rollup";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { CreateBugButton } from "@/components/bugs/CreateBugButton";
+import { CreateTicketButton } from "@/components/tickets/CreateTicketButton";
 import type { KanbanTicket } from "@/lib/tickets/types";
 
 interface PageProps {
@@ -140,6 +141,7 @@ export default async function BoardPage({ params }: PageProps) {
         <h1 className="text-lg font-semibold">{project.name}</h1>
         <span className="font-mono text-xs text-muted-foreground">{project.key}</span>
         <div className="ml-auto flex items-center gap-2">
+          <CreateTicketButton projectId={project.id} userRole={session.role} />
           <CreateBugButton projectId={project.id} />
           {canPilot && (
             <Link

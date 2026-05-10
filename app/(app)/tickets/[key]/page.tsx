@@ -18,6 +18,7 @@ import { Progress } from "@/components/ui/progress";
 import { TestRunnerLauncher } from "@/components/test-runner/TestRunnerLauncher";
 import { TimeLogForm } from "@/components/time/TimeLogForm";
 import { CreateBugButton } from "@/components/bugs/CreateBugButton";
+import { TestCaseList } from "@/components/test-cases/TestCaseList";
 import { isOverBudget } from "@/lib/tickets/types";
 
 interface PageProps {
@@ -42,7 +43,15 @@ export default async function TicketPage({ params }: PageProps) {
       project: { select: { key: true, name: true } },
       testCases: {
         orderBy: { order: "asc" },
-        select: { id: true, title: true, _count: { select: { executions: true } } },
+        select: {
+          id: true,
+          order: true,
+          title: true,
+          preconditions: true,
+          steps: true,
+          expected: true,
+          _count: { select: { executions: true } },
+        },
       },
       attachments: {
         orderBy: { uploadedAt: "desc" },
@@ -162,31 +171,19 @@ export default async function TicketPage({ params }: PageProps) {
 
           {testable && (
             <section className="border rounded-lg p-5 bg-card">
-              <h2 className="text-sm font-semibold uppercase text-muted-foreground mb-3">
-                Cas de test ({ticket.testCases.length})
-              </h2>
-              {ticket.testCases.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Aucun cas de test defini pour ce ticket.
-                </p>
-              ) : (
-                <ol className="space-y-1">
-                  {ticket.testCases.map((c, i) => (
-                    <li
-                      key={c.id}
-                      className="flex items-center gap-3 p-2 rounded hover:bg-muted/50"
-                    >
-                      <span className="text-xs text-muted-foreground font-mono tabular-nums w-6">
-                        {i + 1}
-                      </span>
-                      <span className="flex-1 text-sm truncate">{c.title}</span>
-                      <span className="text-xs text-muted-foreground tabular-nums">
-                        {c._count.executions} exec.
-                      </span>
-                    </li>
-                  ))}
-                </ol>
-              )}
+              <TestCaseList
+                ticketId={ticket.id}
+                userRole={session.role}
+                initialCases={ticket.testCases.map((c) => ({
+                  id: c.id,
+                  order: c.order,
+                  title: c.title,
+                  preconditions: c.preconditions,
+                  steps: c.steps,
+                  expected: c.expected,
+                  executionsCount: c._count.executions,
+                }))}
+              />
             </section>
           )}
         </div>

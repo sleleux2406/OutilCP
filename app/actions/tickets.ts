@@ -4,7 +4,7 @@ import { z } from "zod";
 import { revalidatePath } from "next/cache";
 import { TicketStatus, TicketType } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, canEditTicket } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
 import { canAttach, ALLOWED_PARENTS } from "@/lib/tickets/hierarchy";
 import { nextTicketKey } from "@/lib/tickets/key-generator";
@@ -252,4 +252,185 @@ export async function listAssignableUsersAction(): Promise<{
     orderBy: { name: "asc" },
   });
   return { ok: true, users };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Changer le statut d'un ticket
+// ─────────────────────────────────────────────────────────────
+
+const UpdateStatusSchema = z.object({
+  ticketId: z.string().cuid(),
+  status: z.nativeEnum(TicketStatus),
+});
+
+export type UpdateStatusResult =
+  | { ok: true; newStatus: TicketStatus }
+  | { ok: false; error: "VALIDATION" | "FORBIDDEN" | "NOT_FOUND" };
+
+/**
+ * Modifie le statut d'un ticket depuis sa page détail.
+ * Sécurité :
+ *   - requireAuth + canEditTicket (ADMIN/PO toujours, DEV uniquement si assigné ou créateur)
+ *   - Zod enum TicketStatus
+ *   - Transaction + audit
+ */
+export async function updateTicketStatusAction(
+  input: z.input<typeof UpdateStatusSchema>
+): Promise<UpdateStatusResult> {
+  const session = await requireAuth();
+
+  const parsed = UpdateStatusSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "VALIDATION" };
+  const data = parsed.data;
+
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: data.ticketId },
+    select: {
+      id: true,
+      key: true,
+      status: true,
+      projectId: true,
+      assigneeId: true,
+      creatorId: true,
+    },
+  });
+  if (!ticket) return { ok: false, error: "NOT_FOUND" };
+  if (!(await canEditTicket(session, ticket))) {
+    return { ok: false, error: "FORBIDDEN" };
+  }
+
+  // No-op si même statut
+  if (ticket.status === data.status) {
+    return { ok: true, newStatus: data.status };
+  }
+
+  await prisma.$transaction(async (tx) => {
+    await tx.ticket.update({
+      where: { id: data.ticketId },
+      data: { status: data.status },
+    });
+    await tx.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "TICKET.STATUS_CHANGED",
+        entityType: "Ticket",
+        entityId: data.ticketId,
+        metadata: { from: ticket.status, to: data.status },
+      },
+    });
+  });
+
+  revalidatePath(`/tickets/${ticket.key}`);
+  revalidatePath(`/projects/[key]/board`, "page");
+  revalidatePath(`/projects/[key]/overview`, "page");
+
+  return { ok: true, newStatus: data.status };
+}
+
+// ─────────────────────────────────────────────────────────────
+// Supprimer un ticket
+// ─────────────────────────────────────────────────────────────
+
+const DeleteTicketSchema = z.object({
+  ticketId: z.string().cuid(),
+});
+
+export type DeleteTicketResult =
+  | { ok: true; projectKey: string }
+  | {
+      ok: false;
+      error:
+        | "VALIDATION"
+        | "FORBIDDEN"
+        | "NOT_FOUND"
+        | "HAS_CHILDREN"
+        | "HAS_EXECUTIONS";
+    };
+
+/**
+ * Supprime un ticket.
+ *
+ * Sécurité :
+ *   - requireAuth + RBAC (ADMIN et PRODUCT_OWNER uniquement) [A01]
+ *   - Refuse si le ticket a des enfants (HAS_CHILDREN) : l'utilisateur doit
+ *     supprimer les enfants d'abord pour éviter les cascades accidentelles [A04]
+ *   - Refuse si le ticket a des TestExecutions (HAS_EXECUTIONS) : préserve
+ *     l'historique d'audit des tests [A09]
+ *   - Transaction + audit log conservé malgré la suppression
+ *
+ * Cascade :
+ *   - TimeEntry, TestCase, Attachment sont supprimés en cascade via schema.prisma
+ *     (onDelete: Cascade). Attention : les TestRun aussi (car référencent le ticket).
+ */
+export async function deleteTicketAction(
+  input: z.input<typeof DeleteTicketSchema>
+): Promise<DeleteTicketResult> {
+  const session = await requireAuth();
+
+  // RBAC strict : seuls ADMIN et PO peuvent supprimer
+  if (session.role !== "ADMIN" && session.role !== "PRODUCT_OWNER") {
+    return { ok: false, error: "FORBIDDEN" };
+  }
+
+  const parsed = DeleteTicketSchema.safeParse(input);
+  if (!parsed.success) return { ok: false, error: "VALIDATION" };
+  const data = parsed.data;
+
+  const ticket = await prisma.ticket.findUnique({
+    where: { id: data.ticketId },
+    select: {
+      id: true,
+      key: true,
+      title: true,
+      type: true,
+      project: { select: { key: true } },
+      _count: {
+        select: {
+          children: true,
+          testCases: true,
+        },
+      },
+    },
+  });
+  if (!ticket) return { ok: false, error: "NOT_FOUND" };
+
+  // Refuser si enfants : oblige à supprimer manuellement les sous-tickets
+  if (ticket._count.children > 0) {
+    return { ok: false, error: "HAS_CHILDREN" };
+  }
+
+  // Refuser si des TestExecutions existent sur ses TestCases (historique à préserver)
+  if (ticket._count.testCases > 0) {
+    const execsCount = await prisma.testExecution.count({
+      where: { testCase: { ticketId: data.ticketId } },
+    });
+    if (execsCount > 0) {
+      return { ok: false, error: "HAS_EXECUTIONS" };
+    }
+  }
+
+  // On ne supprime PAS l'audit log pour traçabilité, on le garde
+  // (AuditLog n'a pas de FK cascade vers Ticket, seulement un entityId string)
+  await prisma.$transaction(async (tx) => {
+    // Audit AVANT suppression (entityId deviendra orphelin mais c'est voulu)
+    await tx.auditLog.create({
+      data: {
+        userId: session.userId,
+        action: "TICKET.DELETED",
+        entityType: "Ticket",
+        entityId: ticket.id,
+        metadata: {
+          key: ticket.key,
+          title: ticket.title,
+          type: ticket.type,
+        },
+      },
+    });
+    await tx.ticket.delete({ where: { id: data.ticketId } });
+  });
+
+  revalidatePath(`/projects/${ticket.project.key}/board`);
+  revalidatePath(`/projects/${ticket.project.key}/overview`);
+
+  return { ok: true, projectKey: ticket.project.key };
 }

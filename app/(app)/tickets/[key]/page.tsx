@@ -4,11 +4,10 @@ import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
 import { Clock, User } from "lucide-react";
 import { prisma } from "@/lib/prisma";
-import { requireAuth } from "@/lib/auth";
+import { requireAuth, canEditTicket } from "@/lib/auth";
 import { getTicketRollup } from "@/lib/time-rollup";
 import {
   TICKET_TYPE_META,
-  TICKET_STATUS_META,
   getPriorityMeta,
 } from "@/lib/tickets/metadata";
 import { isTestable } from "@/lib/tickets/hierarchy";
@@ -19,6 +18,9 @@ import { TestRunnerLauncher } from "@/components/test-runner/TestRunnerLauncher"
 import { TimeLogForm } from "@/components/time/TimeLogForm";
 import { CreateBugButton } from "@/components/bugs/CreateBugButton";
 import { TestCaseList } from "@/components/test-cases/TestCaseList";
+import { TicketStatusPicker } from "@/components/tickets/TicketStatusPicker";
+import { TicketChildren } from "@/components/tickets/TicketChildren";
+import { TicketActionsMenu } from "@/components/tickets/TicketActionsMenu";
 import { isOverBudget } from "@/lib/tickets/types";
 
 interface PageProps {
@@ -41,6 +43,18 @@ export default async function TicketPage({ params }: PageProps) {
       creator: { select: { name: true } },
       parent: { select: { key: true, title: true, type: true } },
       project: { select: { key: true, name: true } },
+      children: {
+        orderBy: [{ type: "asc" }, { priority: "asc" }, { createdAt: "desc" }],
+        select: {
+          id: true,
+          key: true,
+          title: true,
+          type: true,
+          status: true,
+          priority: true,
+          assignee: { select: { id: true, name: true } },
+        },
+      },
       testCases: {
         orderBy: { order: "asc" },
         select: {
@@ -63,13 +77,17 @@ export default async function TicketPage({ params }: PageProps) {
 
   const rollup = await getTicketRollup(ticket.id);
   const typeMeta = TICKET_TYPE_META[ticket.type];
-  const statusMeta = TICKET_STATUS_META[ticket.status];
   const priorityMeta = getPriorityMeta(ticket.priority);
   const TypeIcon = typeMeta.icon;
   const overBudget = isOverBudget(rollup);
 
   const canTest = session.role === "TESTER" || session.role === "ADMIN";
   const testable = isTestable(ticket.type);
+  const canEditStatus = await canEditTicket(session, {
+    assigneeId: ticket.assigneeId,
+    creatorId: ticket.creatorId,
+    projectId: ticket.projectId,
+  });
 
   return (
     <main className="container py-6 max-w-5xl space-y-6">
@@ -116,8 +134,18 @@ export default async function TicketPage({ params }: PageProps) {
             )}
           </div>
           <div className="shrink-0 flex items-center gap-2">
-            <Badge variant={statusMeta.badgeVariant}>{statusMeta.label}</Badge>
+            <TicketStatusPicker
+              ticketId={ticket.id}
+              currentStatus={ticket.status}
+              canEdit={canEditStatus}
+            />
             <Badge variant={priorityMeta.variant}>{priorityMeta.shortLabel}</Badge>
+            <TicketActionsMenu
+              ticketId={ticket.id}
+              ticketKey={ticket.key}
+              ticketTitle={ticket.title}
+              userRole={session.role}
+            />
           </div>
         </div>
 
@@ -168,6 +196,11 @@ export default async function TicketPage({ params }: PageProps) {
               <p className="text-sm text-muted-foreground">Aucune description.</p>
             )}
           </section>
+
+          {/* Enfants + bugs liés (pour Epic, Feature, US) */}
+          {ticket.children.length > 0 && (
+            <TicketChildren children={ticket.children} />
+          )}
 
           {testable && (
             <section className="border rounded-lg p-5 bg-card">

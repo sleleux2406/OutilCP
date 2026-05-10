@@ -21,8 +21,14 @@ import type { RollupRow } from "@/lib/tickets/types";
  */
 const RollupRowSchema = z.object({
   ticketId: z.string(),
-  totalEstimatedMinutes: z.number().int().nonnegative(),
-  totalLoggedMinutes: z.number().int().nonnegative(),
+  // Postgres SUM() peut retourner un bigint même après ::int selon le driver.
+  // On accepte number ET bigint, puis on transforme en number.
+  totalEstimatedMinutes: z
+    .union([z.number(), z.bigint()])
+    .transform((v) => (typeof v === "bigint" ? Number(v) : v)),
+  totalLoggedMinutes: z
+    .union([z.number(), z.bigint()])
+    .transform((v) => (typeof v === "bigint" ? Number(v) : v)),
   totalCostCents: z.union([z.number(), z.bigint()]).transform((v) =>
     typeof v === "bigint" ? Number(v) : v
   ),

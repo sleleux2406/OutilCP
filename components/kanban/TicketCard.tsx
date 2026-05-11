@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Clock, FlaskConical, User } from "lucide-react";
-import { cn, formatDays } from "@/lib/utils";
+import { CalendarClock, Clock, FlaskConical, User } from "lucide-react";
+import { cn, formatDate, formatDays } from "@/lib/utils";
 import { TICKET_TYPE_META, getPriorityMeta } from "@/lib/tickets/metadata";
 import { isOverBudget } from "@/lib/tickets/types";
 import type { KanbanTicket } from "@/lib/tickets/types";
@@ -28,8 +28,15 @@ export function TicketCard({ ticket, currentUserId, isOverlay = false }: Props) 
   const overBudget = isOverBudget(ticket.rollup);
   const priority = getPriorityMeta(ticket.priority);
 
-  const loggedDisplay = formatDays(ticket.rollup?.totalLoggedMinutes ?? ticket.loggedMinutes);
-  const estimatedDisplay = formatDays(ticket.rollup?.totalEstimatedMinutes ?? ticket.estimatedMinutes);
+  // Règle demandée : afficher "Estimé initial / Atterrissage (loggé + RAF)"
+  // La vue SQL fournit déjà totalProjectedMinutes = loggé + reste, et
+  // totalEstimatedMinutes = estimation initiale (soi + descendants).
+  const estimatedDisplay = formatDays(
+    ticket.rollup?.totalEstimatedMinutes ?? ticket.estimatedMinutes
+  );
+  const projectedDisplay = formatDays(
+    ticket.rollup?.totalProjectedMinutes ?? ticket.loggedMinutes
+  );
   const progress = ticket.rollup?.progressPercent ?? 0;
 
   return (
@@ -82,6 +89,17 @@ export function TicketCard({ ticket, currentUserId, isOverlay = false }: Props) 
         <p className="text-[10px] text-muted-foreground mb-2 truncate">↖ {ticket.parentKey}</p>
       )}
 
+      {/* Date de fin prévue */}
+      {ticket.endDate && (
+        <p
+          className="text-[10px] text-muted-foreground mb-2 inline-flex items-center gap-1"
+          title="Date de fin prévue"
+        >
+          <CalendarClock className="w-3 h-3" aria-hidden />
+          Fin : {formatDate(ticket.endDate)}
+        </p>
+      )}
+
       {/* Progress bar (si estimation > 0) */}
       {ticket.rollup && ticket.rollup.totalEstimatedMinutes > 0 && (
         <div className="mb-2 h-1 rounded-full bg-muted overflow-hidden">
@@ -93,7 +111,7 @@ export function TicketCard({ ticket, currentUserId, isOverlay = false }: Props) 
         </div>
       )}
 
-      {/* Footer : temps, tests, assignee */}
+      {/* Footer : estimé / atterrissage, tests, assignee */}
       <div className="flex items-center justify-between text-xs text-muted-foreground">
         <div className="flex items-center gap-3">
           <span
@@ -101,10 +119,10 @@ export function TicketCard({ ticket, currentUserId, isOverlay = false }: Props) 
               "flex items-center gap-1 tabular-nums",
               overBudget && "text-destructive font-medium"
             )}
-            title={`${loggedDisplay} loggés / ${estimatedDisplay} estimés`}
+            title={`Estimé initial : ${estimatedDisplay} · Atterrissage (loggé + reste) : ${projectedDisplay}`}
           >
             <Clock className="w-3 h-3" aria-hidden />
-            {loggedDisplay}/{estimatedDisplay}
+            {estimatedDisplay}/{projectedDisplay}
           </span>
 
           {ticket.testStats && ticket.testStats.total > 0 && (

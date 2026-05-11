@@ -14,6 +14,8 @@ export interface KanbanTicket {
   estimatedMinutes: number;
   loggedMinutes: number;
   remainingMinutes: number | null;
+  /** Date de fin prévue (calculée via endDate + RAF) — sérialisée en string ISO côté client. */
+  endDate: string | null;
   assignee: { id: string; name: string } | null;
   parentKey: string | null;
   testStats?: { passed: number; failed: number; total: number };

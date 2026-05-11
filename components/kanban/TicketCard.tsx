@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarClock, Clock, FlaskConical, User } from "lucide-react";
+import { CalendarClock, Clock, FlaskConical, Sparkles, User } from "lucide-react";
 import { cn, formatDate, formatDays } from "@/lib/utils";
 import { TICKET_TYPE_META, getPriorityMeta } from "@/lib/tickets/metadata";
 import { isOverBudget } from "@/lib/tickets/types";
@@ -84,6 +84,22 @@ export function TicketCard({ ticket, currentUserId, isOverlay = false }: Props) 
 
       {/* Titre */}
       <h4 className="text-sm font-medium leading-snug mb-2 line-clamp-2">{ticket.title}</h4>
+
+      {/* Badge "À estimer" — Feature sans enfant Task/Bug */}
+      {ticket.needsEstimation && (
+        <div className="mb-2">
+          <Link
+            href="/estimations"
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 dark:text-amber-300 transition-colors"
+            title="Cette Feature n'a pas encore été décomposée en tâches. Cliquez pour lancer la session d'estimation."
+          >
+            <Sparkles className="w-3 h-3" aria-hidden />
+            À estimer
+          </Link>
+        </div>
+      )}
 
       {ticket.parentKey && (
         <p className="text-[10px] text-muted-foreground mb-2 truncate">↖ {ticket.parentKey}</p>

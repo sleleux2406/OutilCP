@@ -18,6 +18,8 @@ export interface KanbanTicket {
   endDate: string | null;
   assignee: { id: string; name: string } | null;
   parentKey: string | null;
+  /** True si c'est une Feature sans Task/Bug enfant → workflow session d'estimation. */
+  needsEstimation?: boolean;
   testStats?: { passed: number; failed: number; total: number };
   rollup: {
     totalEstimatedMinutes: number;

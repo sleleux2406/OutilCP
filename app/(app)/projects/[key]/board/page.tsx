@@ -7,6 +7,7 @@ import { getProjectRollups } from "@/lib/time-rollup";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { CreateBugButton } from "@/components/bugs/CreateBugButton";
 import { CreateTicketButton } from "@/components/tickets/CreateTicketButton";
+import { KANBAN_VISIBLE_TYPES_BY_ROLE, isFeatureNeedingEstimation } from "@/lib/tickets/hierarchy";
 import type { KanbanTicket } from "@/lib/tickets/types";
 
 interface PageProps {
@@ -28,9 +29,17 @@ export default async function BoardPage({ params }: PageProps) {
   });
   if (!project) notFound();
 
+  // Filtrage Kanban selon le rôle :
+  //   - DEVELOPER : voit Tasks + Bugs (niveau exécution)
+  //   - ADMIN / PRODUCT_OWNER / TESTER : voient Epics + Features (niveau pilotage)
+  const visibleTypes = KANBAN_VISIBLE_TYPES_BY_ROLE[session.role];
+
   const [rawTickets, rollups, testExecStats] = await Promise.all([
     prisma.ticket.findMany({
-      where: { projectId: project.id },
+      where: {
+        projectId: project.id,
+        type: { in: visibleTypes },
+      },
       select: {
         id: true,
         key: true,
@@ -45,6 +54,8 @@ export default async function BoardPage({ params }: PageProps) {
         endDate: true,
         assignee: { select: { id: true, name: true } },
         parent: { select: { key: true } },
+        // Pour déduire l'état "à estimer" d'une Feature côté UI
+        children: { select: { type: true } },
       },
       orderBy: [{ status: "asc" }, { boardOrder: "asc" }],
     }),
@@ -118,6 +129,10 @@ export default async function BoardPage({ params }: PageProps) {
       endDate: t.endDate ? t.endDate.toISOString() : null,
       assignee: t.assignee,
       parentKey: t.parent?.key ?? null,
+      needsEstimation: isFeatureNeedingEstimation(
+        t.type,
+        t.children.map((c) => c.type)
+      ),
       testStats: testsByTicket.get(t.id),
       rollup: rollup
         ? {

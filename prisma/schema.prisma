@@ -134,6 +134,14 @@ model Ticket {
   // Les roll-ups (estimé total, loggé total, reste total, projection) sont
   // calculés via la vue SQL ticket_rollup
 
+  // Planning (jours ouvrés)
+  // startDate : date de début d'exécution prévue (saisie par l'utilisateur)
+  // endDate : calculée automatiquement à partir de startDate + RAF restant,
+  //          mais stockée en BDD pour performance + historique
+  // Les deux sont null tant que la planification n'a pas commencé.
+  startDate DateTime? @db.Date
+  endDate   DateTime? @db.Date
+
   // Kanban
   boardOrder Int @default(0)
 

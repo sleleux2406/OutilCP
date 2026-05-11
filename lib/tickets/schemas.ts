@@ -41,7 +41,8 @@ export type UpdateTicketInput = z.infer<typeof UpdateTicketSchema>;
 
 export const LogTimeSchema = z.object({
   ticketId: z.string().cuid(),
-  minutes: z.number().int().positive().max(1440), // max 24h par entrée (aligné CHECK SQL)
+  // Max 30 jours par entrée = 14400 min (aligné CHECK SQL time_entry_minutes_positive)
+  minutes: z.number().int().positive().max(14400),
   description: z.string().trim().max(500).optional(),
 });
 export type LogTimeInput = z.infer<typeof LogTimeSchema>;

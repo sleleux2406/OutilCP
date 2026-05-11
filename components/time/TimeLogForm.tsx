@@ -45,8 +45,8 @@ export function TimeLogForm({ ticketId, onLogged, compact = false }: Props) {
       toast.error("Saisissez au moins quelques minutes");
       return;
     }
-    if (totalMinutes > 1440) {
-      toast.error("Maximum 24 heures (3 jours équivalents) par entrée");
+    if (totalMinutes > 30 * MINUTES_PER_DAY) {
+      toast.error("Maximum 30 jours par entrée");
       return;
     }
 
@@ -81,7 +81,7 @@ export function TimeLogForm({ ticketId, onLogged, compact = false }: Props) {
         <Input
           type="number"
           min={0}
-          max={3}
+          max={30}
           step={0.5}
           placeholder="j"
           value={days}
@@ -116,7 +116,7 @@ export function TimeLogForm({ ticketId, onLogged, compact = false }: Props) {
             id={`d-${ticketId}`}
             type="number"
             min={0}
-            max={3}
+            max={30}
             step={0.5}
             value={days}
             onChange={(e) => setDays(e.target.value)}
@@ -138,7 +138,7 @@ export function TimeLogForm({ ticketId, onLogged, compact = false }: Props) {
         </div>
       </div>
       <p className="text-[10px] text-muted-foreground -mt-1">
-        1 jour = {HOURS_PER_DAY}h · maximum 24h par entrée
+        1 jour = {HOURS_PER_DAY}h · maximum 30 jours par entrée
       </p>
 
       <div>

@@ -13,7 +13,7 @@ export type LogTimeResult =
  * Logger du temps sur un ticket.
  *
  * Sécurité :
- *   - Zod valide (cuid, minutes > 0 && <= 1440, description <= 500 chars) [A03]
+ *   - Zod valide (cuid, minutes > 0 && <= 14400 = 30j, description <= 500 chars) [A03]
  *   - requireAuth() + canEditTicket() : seul un assigné/créateur/PO/Admin peut logger [A01]
  *   - Transaction : TimeEntry + mise à jour Ticket.loggedMinutes + AuditLog atomiques [A09]
  *   - La vue ticket_rollup se met à jour automatiquement (vue calculée, pas matérialisée)

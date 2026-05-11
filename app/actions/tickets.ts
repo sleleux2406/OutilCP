@@ -10,6 +10,8 @@ import { canAttach, ALLOWED_PARENTS } from "@/lib/tickets/hierarchy";
 import { nextTicketKey } from "@/lib/tickets/key-generator";
 import { buildPath } from "@/lib/tickets/path";
 import { computeEstimationEditability } from "@/lib/tickets/estimation-rules";
+import { recomputeAndSaveEndDate } from "@/lib/tickets/dates";
+import { shiftBusinessDays, toNextBusinessDay, countBusinessDays } from "@/lib/dates/business-days";
 
 // ─────────────────────────────────────────────────────────────
 // RBAC : qui peut créer quel type de ticket
@@ -268,6 +270,11 @@ const UpdateTicketSchema = z.object({
   // Reste à faire : null pour réinitialiser (retour au fallback), sinon >= 0
   remainingMinutes: z.number().int().min(0).max(60 * 24 * 30).nullable().optional(),
   assigneeId: z.string().cuid().nullable().optional(),
+  // Date de début (jour ouvré, format ISO YYYY-MM-DD côté client).
+  // null = retirer la planification. undefined = pas de changement.
+  startDate: z
+    .union([z.string().regex(/^\d{4}-\d{2}-\d{2}$/), z.null()])
+    .optional(),
 });
 
 export type UpdateTicketResult =
@@ -332,6 +339,9 @@ export async function updateTicketAction(
       // Nécessaire pour appliquer les règles métier (lib/tickets/estimation-rules)
       status: true,
       loggedMinutes: true,
+      // Planning : nécessaire pour le décalage start → end
+      startDate: true,
+      endDate: true,
       _count: { select: { children: true } },
     },
   });
@@ -428,6 +438,65 @@ export async function updateTicketAction(
     updateData.assigneeId = data.assigneeId;
   }
 
+  // ─── startDate ─────────────────────────────────────────────
+  // Si l'utilisateur fournit une startDate, on normalise au prochain jour ouvré
+  // (samedi → lundi suivant). La endDate sera recalculée en fin de transaction.
+  //
+  // Règle "décalage" : si startDate passe de A vers B et que endDate existait
+  // déjà, on décale endDate du même nombre de jours ouvrés pour conserver la
+  // durée planifiée (utile quand l'utilisateur reporte juste le démarrage).
+  let newStartDate: Date | null | undefined = undefined;
+  if (data.startDate !== undefined) {
+    if (data.startDate === null) {
+      // On retire la planification
+      newStartDate = null;
+    } else {
+      // Parse la string "YYYY-MM-DD" en Date UTC puis normalise au jour ouvré
+      const parsed = new Date(`${data.startDate}T00:00:00Z`);
+      if (isNaN(parsed.getTime())) {
+        return { ok: false, error: "VALIDATION" };
+      }
+      newStartDate = toNextBusinessDay(parsed);
+    }
+
+    const oldStartMs = ticket.startDate?.getTime() ?? null;
+    const newStartMs = newStartDate?.getTime() ?? null;
+    if (oldStartMs !== newStartMs) {
+      changed.startDate = {
+        from: ticket.startDate ? ticket.startDate.toISOString().slice(0, 10) : null,
+        to: newStartDate ? newStartDate.toISOString().slice(0, 10) : null,
+      };
+      updateData.startDate = newStartDate;
+
+      // Décalage : si old start + old end existaient, on reporte end d'autant.
+      // (sera écrasé par le recalcul en fin si remainingMinutes a bougé aussi,
+      //  mais cohérent si seule la startDate change)
+      if (
+        ticket.startDate &&
+        ticket.endDate &&
+        newStartDate &&
+        data.remainingMinutes === undefined &&
+        data.estimatedMinutes === undefined
+      ) {
+        // On maintient la même durée en jours ouvrés
+        const durationDays = countBusinessDays(ticket.startDate, ticket.endDate);
+        // durationDays inclut début, donc on décale de (durationDays - 1) jours
+        // à partir du nouveau début pour retomber sur la même durée.
+        // Ex: ancien jeudi→lundi = 3 jours ouvrés. Nouveau début mardi → fin =
+        //     mardi + 2 jours ouvrés = jeudi.
+        const newEnd =
+          durationDays > 0
+            ? shiftBusinessDays(newStartDate, durationDays - 1)
+            : newStartDate;
+        updateData.endDate = newEnd;
+      } else if (newStartDate === null) {
+        // Plus de start → plus de end
+        updateData.endDate = null;
+      }
+      // Sinon recalcul auto via recomputeAndSaveEndDate (voir fin de transaction)
+    }
+  }
+
   // Aucun changement → no-op (on retourne ok sans update ni audit)
   if (Object.keys(updateData).length === 0) {
     return { ok: true };
@@ -438,6 +507,20 @@ export async function updateTicketAction(
       where: { id: data.ticketId },
       data: updateData,
     });
+
+    // Recalcul endDate si le changement peut l'impacter.
+    // Ne s'applique pas au cas "décalage pur de startDate" où on a déjà
+    // fixé endDate par shiftBusinessDays ci-dessus.
+    const touchesPlanning =
+      data.startDate !== undefined ||
+      data.remainingMinutes !== undefined ||
+      data.estimatedMinutes !== undefined;
+    const alreadySetEndDate = "endDate" in updateData;
+
+    if (touchesPlanning && !alreadySetEndDate) {
+      await recomputeAndSaveEndDate(tx, data.ticketId);
+    }
+
     await tx.auditLog.create({
       data: {
         userId: session.userId,

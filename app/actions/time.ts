@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, canEditTicket } from "@/lib/auth";
 import { LogTimeSchema, type LogTimeInput } from "@/lib/tickets/schemas";
-import { recomputeAndSaveEndDate } from "@/lib/tickets/dates";
+import { recomputeAndSaveEndDate, rollupDatesToParent } from "@/lib/tickets/dates";
 
 export type LogTimeResult =
   | { ok: true; totalLoggedMinutes: number }
@@ -33,6 +33,7 @@ export async function logTimeAction(input: LogTimeInput): Promise<LogTimeResult>
       projectId: true,
       assigneeId: true,
       creatorId: true,
+      parentId: true,
       type: true,
       key: true,
     },
@@ -71,6 +72,11 @@ export async function logTimeAction(input: LogTimeInput): Promise<LogTimeResult>
     // Le log de temps peut changer le RAF effectif (fallback = estimated - logged),
     // donc recalculer endDate si une startDate est définie.
     await recomputeAndSaveEndDate(tx, data.ticketId);
+
+    // Propagation vers le parent (min startDate / max endDate des enfants)
+    if (ticket.parentId) {
+      await rollupDatesToParent(tx, ticket.parentId);
+    }
 
     await tx.auditLog.create({
       data: {

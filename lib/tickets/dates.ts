@@ -62,8 +62,8 @@ export async function recomputeAndSaveEndDate(
   });
   if (!ticket) return null;
 
-  // Les tickets parents ont leurs dates agrégées depuis les enfants (Lot 3).
-  // Pour l'instant on ignore ; le Lot 3 s'en occupera.
+  // Les tickets parents ont leurs dates agrégées depuis les enfants
+  // (voir rollupDatesToParent). On ne calcule pas par formule ici.
   if (ticket._count.children > 0) return ticket.endDate;
 
   const newEnd = computeTicketEndDate({
@@ -85,4 +85,63 @@ export async function recomputeAndSaveEndDate(
   }
 
   return newEnd;
+}
+
+/**
+ * Propage les dates vers un ticket parent (Feature ou Epic) selon la règle
+ * de parallélisation :
+ *   - startDate parent = min(startDate enfants non-null)
+ *   - endDate parent = max(endDate enfants non-null)
+ *   - Si tous les enfants ont NULL → le parent repasse à NULL
+ *
+ * À appeler dans une transaction, typiquement après un update d'enfant.
+ * Remonte récursivement jusqu'à la racine (Epic).
+ *
+ * Ne fait rien si le ticket n'a pas d'enfants (feuille) ou n'existe pas.
+ */
+export async function rollupDatesToParent(
+  tx: Prisma.TransactionClient,
+  parentId: string
+): Promise<void> {
+  let currentId: string | null = parentId;
+
+  // Remontée itérative vers la racine
+  while (currentId) {
+    const parent: {
+      id: string;
+      parentId: string | null;
+      startDate: Date | null;
+      endDate: Date | null;
+    } | null = await tx.ticket.findUnique({
+      where: { id: currentId },
+      select: { id: true, parentId: true, startDate: true, endDate: true },
+    });
+    if (!parent) return;
+
+    // Agrégats min/max sur les enfants directs
+    const agg = await tx.ticket.aggregate({
+      where: { parentId: currentId },
+      _min: { startDate: true },
+      _max: { endDate: true },
+    });
+
+    const newStart = agg._min.startDate;
+    const newEnd = agg._max.endDate;
+
+    const oldStartMs = parent.startDate?.getTime() ?? null;
+    const oldEndMs = parent.endDate?.getTime() ?? null;
+    const newStartMs = newStart?.getTime() ?? null;
+    const newEndMs = newEnd?.getTime() ?? null;
+
+    // Rien n'a changé → on arrête la remontée (l'ancêtre n'est pas impacté)
+    if (oldStartMs === newStartMs && oldEndMs === newEndMs) return;
+
+    await tx.ticket.update({
+      where: { id: currentId },
+      data: { startDate: newStart, endDate: newEnd },
+    });
+
+    // Remonter au grand-parent
+    currentId = parent.parentId;
+  }
 }

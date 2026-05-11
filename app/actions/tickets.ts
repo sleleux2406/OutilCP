@@ -10,7 +10,7 @@ import { canAttach, ALLOWED_PARENTS } from "@/lib/tickets/hierarchy";
 import { nextTicketKey } from "@/lib/tickets/key-generator";
 import { buildPath } from "@/lib/tickets/path";
 import { computeEstimationEditability } from "@/lib/tickets/estimation-rules";
-import { recomputeAndSaveEndDate } from "@/lib/tickets/dates";
+import { recomputeAndSaveEndDate, rollupDatesToParent } from "@/lib/tickets/dates";
 import { shiftBusinessDays, toNextBusinessDay, countBusinessDays } from "@/lib/dates/business-days";
 
 // ─────────────────────────────────────────────────────────────
@@ -331,6 +331,7 @@ export async function updateTicketAction(
       projectId: true,
       assigneeId: true,
       creatorId: true,
+      parentId: true,
       title: true,
       description: true,
       priority: true,
@@ -521,6 +522,13 @@ export async function updateTicketAction(
       await recomputeAndSaveEndDate(tx, data.ticketId);
     }
 
+    // Propagation vers le parent : si startDate ou endDate de CE ticket ont
+    // pu changer, les dates du parent doivent être re-agrégées (min/max).
+    const touchesDates = touchesPlanning || alreadySetEndDate;
+    if (touchesDates && ticket.parentId) {
+      await rollupDatesToParent(tx, ticket.parentId);
+    }
+
     await tx.auditLog.create({
       data: {
         userId: session.userId,
@@ -671,6 +679,7 @@ export async function deleteTicketAction(
       key: true,
       title: true,
       type: true,
+      parentId: true,
       project: { select: { key: true } },
       _count: {
         select: {
@@ -715,6 +724,12 @@ export async function deleteTicketAction(
       },
     });
     await tx.ticket.delete({ where: { id: data.ticketId } });
+
+    // Propagation vers le parent : suppression d'un enfant change potentiellement
+    // min(startDate) / max(endDate) de l'agrégat parent.
+    if (ticket.parentId) {
+      await rollupDatesToParent(tx, ticket.parentId);
+    }
   });
 
   revalidatePath(`/projects/${ticket.project.key}/board`);

@@ -26,6 +26,7 @@ import {
   daysToMinutes,
   minutesToDays,
   MINUTES_PER_DAY,
+  toISODate,
 } from "@/lib/utils";
 import {
   computeEstimationEditability,
@@ -43,6 +44,7 @@ export interface TicketEditorInitial {
   status: import("@prisma/client").TicketStatus;
   hasChildren: boolean;
   assigneeId: string | null;
+  startDate: Date | null;
 }
 
 interface Props {
@@ -76,6 +78,7 @@ export function TicketEditor({ ticket, canEdit }: Props) {
       : ""
   );
   const [assigneeId, setAssigneeId] = useState<string>(ticket.assigneeId ?? "");
+  const [startDate, setStartDate] = useState<string>(toISODate(ticket.startDate));
   const [assignableUsers, setAssignableUsers] = useState<
     { id: string; name: string; role: string }[]
   >([]);
@@ -103,6 +106,7 @@ export function TicketEditor({ ticket, canEdit }: Props) {
           : ""
       );
       setAssigneeId(ticket.assigneeId ?? "");
+      setStartDate(toISODate(ticket.startDate));
     }
   }, [ticket, open]);
 
@@ -142,6 +146,14 @@ export function TicketEditor({ ticket, canEdit }: Props) {
 
     const descTrimmed = description.trim();
 
+    // Normalise startDate : string non vide = valeur, string vide = null (retirer)
+    const startDateValue: string | null | undefined = (() => {
+      const current = toISODate(ticket.startDate);
+      if (startDate === current) return undefined; // inchangé
+      if (startDate.trim() === "") return null; // retirer la planification
+      return startDate;
+    })();
+
     startTransition(async () => {
       const res = await updateTicketAction({
         ticketId: ticket.id,
@@ -151,6 +163,7 @@ export function TicketEditor({ ticket, canEdit }: Props) {
         estimatedMinutes: minutes,
         remainingMinutes: remainingValue,
         assigneeId: assigneeId || null,
+        ...(startDateValue !== undefined ? { startDate: startDateValue } : {}),
       });
 
       if (!res.ok) {
@@ -309,6 +322,29 @@ export function TicketEditor({ ticket, canEdit }: Props) {
                   : editability.lockReason === "HAS_CHILDREN"
                   ? "Valeur agrégée depuis les enfants."
                   : "Ré-estimez le temps restant au fur et à mesure."}
+              </p>
+            </div>
+
+            <div>
+              <Label htmlFor="edit-start-date">
+                Date de début
+                {ticket.hasChildren && (
+                  <span className="ml-1 text-[10px] text-muted-foreground font-normal">
+                    (calculée depuis les enfants)
+                  </span>
+                )}
+              </Label>
+              <Input
+                id="edit-start-date"
+                type="date"
+                value={startDate}
+                onChange={(e) => setStartDate(e.target.value)}
+                disabled={ticket.hasChildren}
+              />
+              <p className="text-[10px] text-muted-foreground mt-1">
+                {ticket.hasChildren
+                  ? "La date de début et la date de fin sont agrégées depuis les User Stories."
+                  : "Jour ouvré uniquement (week-end normalisé au lundi suivant). La date de fin est calculée automatiquement."}
               </p>
             </div>
 

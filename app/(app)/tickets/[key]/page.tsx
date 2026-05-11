@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
-import { Clock, User } from "lucide-react";
+import { Calendar, Clock, User } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, canEditTicket } from "@/lib/auth";
 import { getTicketRollup } from "@/lib/time-rollup";
@@ -11,7 +11,7 @@ import {
   getPriorityMeta,
 } from "@/lib/tickets/metadata";
 import { isTestable } from "@/lib/tickets/hierarchy";
-import { formatDays, formatDateTime, cn } from "@/lib/utils";
+import { formatDate, formatDays, formatDateTime, cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { TestRunnerLauncher } from "@/components/test-runner/TestRunnerLauncher";
@@ -177,6 +177,7 @@ export default async function TicketPage({ params }: PageProps) {
               status: ticket.status,
               hasChildren: ticket.children.length > 0,
               assigneeId: ticket.assigneeId,
+              startDate: ticket.startDate,
             }}
             canEdit={canEditStatus}
           />
@@ -240,6 +241,34 @@ export default async function TicketPage({ params }: PageProps) {
         </div>
 
         <aside className="space-y-4">
+          <section className="border rounded-lg p-4 bg-card">
+            <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-3 inline-flex items-center gap-1">
+              <Calendar className="h-3 w-3" aria-hidden /> Planification
+            </h3>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Début</span>
+                <span className="font-semibold">{formatDate(ticket.startDate)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Fin prévue</span>
+                <span className="font-semibold">{formatDate(ticket.endDate)}</span>
+              </div>
+              {ticket.startDate && ticket.endDate && (
+                <p className="text-[10px] text-muted-foreground pt-1 border-t">
+                  {ticket.children.length > 0
+                    ? "Min début / max fin des User Stories (parallélisation)."
+                    : "Calcul en jours ouvrés : début + reste à faire."}
+                </p>
+              )}
+              {!ticket.startDate && !ticket.children.length && (
+                <p className="text-[10px] text-muted-foreground italic">
+                  Aucune planification. Cliquez sur Modifier pour définir une date de début.
+                </p>
+              )}
+            </div>
+          </section>
+
           <section className="border rounded-lg p-4 bg-card">
             <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-3">
               Temps (avec descendants)

@@ -55,3 +55,29 @@ export function formatDateTime(date: Date | string): string {
     timeStyle: "short",
   });
 }
+
+/**
+ * Formate une date sans l'heure (ex : "15 janv. 2026").
+ * Utilisé pour afficher startDate / endDate d'un ticket.
+ */
+export function formatDate(date: Date | string | null | undefined): string {
+  if (!date) return "—";
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+/**
+ * Convertit une Date JS en string "YYYY-MM-DD" (jour UTC) pour un <input type="date">.
+ * Retourne "" si pas de date.
+ */
+export function toISODate(date: Date | string | null | undefined): string {
+  if (!date) return "";
+  const d = typeof date === "string" ? new Date(date) : date;
+  if (isNaN(d.getTime())) return "";
+  return d.toISOString().slice(0, 10);
+}

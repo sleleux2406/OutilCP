@@ -9,6 +9,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { canAttach, ALLOWED_PARENTS } from "@/lib/tickets/hierarchy";
 import { nextTicketKey } from "@/lib/tickets/key-generator";
 import { buildPath } from "@/lib/tickets/path";
+import { computeEstimationEditability } from "@/lib/tickets/estimation-rules";
 
 // ─────────────────────────────────────────────────────────────
 // RBAC : qui peut créer quel type de ticket
@@ -278,6 +279,8 @@ export type UpdateTicketResult =
         | "FORBIDDEN"
         | "NOT_FOUND"
         | "ASSIGNEE_NOT_FOUND"
+        | "ESTIMATED_LOCKED"
+        | "REMAINING_LOCKED"
         | "RATE_LIMITED";
     };
 
@@ -326,12 +329,41 @@ export async function updateTicketAction(
       priority: true,
       estimatedMinutes: true,
       remainingMinutes: true,
+      // Nécessaire pour appliquer les règles métier (lib/tickets/estimation-rules)
+      status: true,
+      loggedMinutes: true,
+      _count: { select: { children: true } },
     },
   });
   if (!ticket) return { ok: false, error: "NOT_FOUND" };
 
   if (!(await canEditTicket(session, ticket))) {
     return { ok: false, error: "FORBIDDEN" };
+  }
+
+  // Appliquer les règles de verrouillage estimation / RAF [règles métier]
+  const editability = computeEstimationEditability({
+    status: ticket.status,
+    loggedMinutes: ticket.loggedMinutes,
+    hasChildren: ticket._count.children > 0,
+  });
+
+  // Tentative de modifier estimatedMinutes alors que verrouillé → refus
+  if (
+    data.estimatedMinutes !== undefined &&
+    data.estimatedMinutes !== ticket.estimatedMinutes &&
+    !editability.canEditEstimated
+  ) {
+    return { ok: false, error: "ESTIMATED_LOCKED" };
+  }
+
+  // Tentative de modifier remainingMinutes alors que verrouillé → refus
+  if (
+    data.remainingMinutes !== undefined &&
+    data.remainingMinutes !== ticket.remainingMinutes &&
+    !editability.canEditRemaining
+  ) {
+    return { ok: false, error: "REMAINING_LOCKED" };
   }
 
   // Vérifier que l'assignee existe si fourni
@@ -369,6 +401,17 @@ export async function updateTicketAction(
       to: data.estimatedMinutes,
     };
     updateData.estimatedMinutes = data.estimatedMinutes;
+
+    // Règle 2a : à froid, le RAF se synchronise automatiquement sur estimated.
+    // L'utilisateur n'a pas pu modifier le RAF (champ désactivé), donc ici
+    // on prend l'initiative de le réaligner.
+    if (editability.lockReason === "COLD_AUTO_SYNC") {
+      updateData.remainingMinutes = data.estimatedMinutes;
+      changed.remainingMinutes = {
+        from: ticket.remainingMinutes,
+        to: data.estimatedMinutes,
+      };
+    }
   }
   if (
     data.remainingMinutes !== undefined &&
@@ -459,10 +502,17 @@ export async function updateTicketStatusAction(
     return { ok: true, newStatus: data.status };
   }
 
+  // Règle 1 : passage à DONE → RAF automatiquement remis à 0
+  // (le ticket est terminé, plus rien à faire)
+  const isClosing = data.status === "DONE" && ticket.status !== "DONE";
+
   await prisma.$transaction(async (tx) => {
     await tx.ticket.update({
       where: { id: data.ticketId },
-      data: { status: data.status },
+      data: {
+        status: data.status,
+        ...(isClosing ? { remainingMinutes: 0 } : {}),
+      },
     });
     await tx.auditLog.create({
       data: {

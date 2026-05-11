@@ -27,6 +27,10 @@ import {
   minutesToDays,
   MINUTES_PER_DAY,
 } from "@/lib/utils";
+import {
+  computeEstimationEditability,
+  getLockReasonLabel,
+} from "@/lib/tickets/estimation-rules";
 
 export interface TicketEditorInitial {
   id: string;
@@ -35,6 +39,9 @@ export interface TicketEditorInitial {
   priority: number;
   estimatedMinutes: number;
   remainingMinutes: number | null;
+  loggedMinutes: number;
+  status: import("@prisma/client").TicketStatus;
+  hasChildren: boolean;
   assigneeId: string | null;
 }
 
@@ -101,6 +108,14 @@ export function TicketEditor({ ticket, canEdit }: Props) {
 
   if (!canEdit) return null;
 
+  // Règles métier : décide ce qui est modifiable
+  const editability = computeEstimationEditability({
+    status: ticket.status,
+    loggedMinutes: ticket.loggedMinutes,
+    hasChildren: ticket.hasChildren,
+  });
+  const lockLabel = getLockReasonLabel(editability.lockReason);
+
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
 
@@ -144,6 +159,10 @@ export function TicketEditor({ ticket, canEdit }: Props) {
           FORBIDDEN: "Vous n'êtes pas autorisé à modifier ce ticket",
           NOT_FOUND: "Ticket introuvable",
           ASSIGNEE_NOT_FOUND: "L'utilisateur assigné n'existe plus",
+          ESTIMATED_LOCKED:
+            "Estimation initiale verrouillée (ticket terminé, temps déjà loggé, ou ticket parent).",
+          REMAINING_LOCKED:
+            "Reste à faire verrouillé (ticket terminé, à froid, ou ticket parent).",
           RATE_LIMITED: "Trop de modifications rapides, réessayez dans quelques minutes",
         }[res.error];
         toast.error(msg);
@@ -182,6 +201,12 @@ export function TicketEditor({ ticket, canEdit }: Props) {
           </DialogHeader>
 
           <form onSubmit={submit} className="space-y-4">
+            {lockLabel && (
+              <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                {lockLabel}
+              </div>
+            )}
+
             <div>
               <Label htmlFor="edit-title">Titre *</Label>
               <Input
@@ -225,7 +250,14 @@ export function TicketEditor({ ticket, canEdit }: Props) {
                 </Select>
               </div>
               <div>
-                <Label htmlFor="edit-estimated">Estimé initial (jours)</Label>
+                <Label htmlFor="edit-estimated">
+                  Estimé initial (jours)
+                  {!editability.canEditEstimated && (
+                    <span className="ml-1 text-[10px] text-muted-foreground font-normal">
+                      (verrouillé)
+                    </span>
+                  )}
+                </Label>
                 <Input
                   id="edit-estimated"
                   type="number"
@@ -235,13 +267,25 @@ export function TicketEditor({ ticket, canEdit }: Props) {
                   value={estimatedDays}
                   onChange={(e) => setEstimatedDays(e.target.value)}
                   placeholder="0"
+                  disabled={!editability.canEditEstimated}
                 />
-                <p className="text-[10px] text-muted-foreground mt-1">1 jour = 8 heures</p>
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  1 jour = 8 heures
+                  {editability.lockReason === "COLD_AUTO_SYNC" &&
+                    " · Le reste à faire se synchronisera automatiquement."}
+                </p>
               </div>
             </div>
 
             <div>
-              <Label htmlFor="edit-remaining">Reste à faire (jours)</Label>
+              <Label htmlFor="edit-remaining">
+                Reste à faire (jours)
+                {!editability.canEditRemaining && (
+                  <span className="ml-1 text-[10px] text-muted-foreground font-normal">
+                    (verrouillé)
+                  </span>
+                )}
+              </Label>
               <Input
                 id="edit-remaining"
                 type="number"
@@ -250,10 +294,21 @@ export function TicketEditor({ ticket, canEdit }: Props) {
                 step={0.5}
                 value={remainingDays}
                 onChange={(e) => setRemainingDays(e.target.value)}
-                placeholder="Laisser vide pour calcul automatique"
+                placeholder={
+                  editability.canEditRemaining ? "Ré-estimez le temps restant" : ""
+                }
+                disabled={!editability.canEditRemaining}
               />
               <p className="text-[10px] text-muted-foreground mt-1">
-                Ré-estimez le temps restant au fur et à mesure. Vide = estimation − loggé.
+                {editability.lockReason === "HOT_ESTIMATED_FROZEN"
+                  ? "Du temps a été loggé : ajustez ce champ au fil du ticket."
+                  : editability.lockReason === "COLD_AUTO_SYNC"
+                  ? "Calculé automatiquement à partir de l'estimation initiale."
+                  : editability.lockReason === "DONE"
+                  ? "Ticket terminé : plus rien à faire."
+                  : editability.lockReason === "HAS_CHILDREN"
+                  ? "Valeur agrégée depuis les enfants."
+                  : "Ré-estimez le temps restant au fur et à mesure."}
               </p>
             </div>
 

@@ -173,6 +173,9 @@ export default async function TicketPage({ params }: PageProps) {
               priority: ticket.priority,
               estimatedMinutes: ticket.estimatedMinutes,
               remainingMinutes: ticket.remainingMinutes,
+              loggedMinutes: ticket.loggedMinutes,
+              status: ticket.status,
+              hasChildren: ticket.children.length > 0,
               assigneeId: ticket.assigneeId,
             }}
             canEdit={canEditStatus}

@@ -69,6 +69,7 @@ model User {
   auditLogs       AuditLog[]
   sessions        Session[]
   attachments     Attachment[]
+  leaves          UserLeave[]
 
   @@index([role])
 }
@@ -282,4 +283,41 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([userId, createdAt])
   @@index([action, createdAt])
+}
+
+// ─────────────────────────────────────────────────────────────
+// Gestion des disponibilités : jours fériés + congés
+// ─────────────────────────────────────────────────────────────
+
+/**
+ * Jours fériés globaux (toutes équipes confondues).
+ * Gérés par ADMIN/PO dans l'interface admin.
+ * La date est stockée en UTC pour éviter les surprises de fuseau horaire.
+ */
+model Holiday {
+  id        String   @id @default(cuid())
+  date      DateTime @db.Date
+  label     String // ex: "Jour de l'an", "1er mai"
+  createdAt DateTime @default(now())
+
+  @@unique([date]) // une seule entrée par date
+  @@index([date])
+}
+
+/**
+ * Congés individuels d'un utilisateur.
+ * Chaque ligne représente une plage continue [startDate, endDate] inclusive.
+ * Le champ label est optionnel (ex: "Vacances été").
+ */
+model UserLeave {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  startDate DateTime @db.Date
+  endDate   DateTime @db.Date
+  label     String?
+  createdAt DateTime @default(now())
+
+  @@index([userId, startDate])
+  @@index([userId, endDate])
 }

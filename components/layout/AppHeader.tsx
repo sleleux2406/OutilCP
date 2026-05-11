@@ -1,5 +1,10 @@
 import Link from "next/link";
-import { KanbanSquare, LayoutDashboard, Bug } from "lucide-react";
+import {
+  CalendarDays,
+  CalendarX,
+  KanbanSquare,
+  LayoutDashboard,
+} from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import type { Session } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
@@ -38,14 +43,32 @@ export function AppHeader({ session }: Props) {
             Projets
           </Link>
           {canPilot && (
-            <Link
-              href="/pilotage"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-accent"
-            >
-              <LayoutDashboard className="h-4 w-4" />
-              Pilotage
-            </Link>
+            <>
+              <Link
+                href="/pilotage"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-accent"
+              >
+                <LayoutDashboard className="h-4 w-4" />
+                Pilotage
+              </Link>
+              <Link
+                href="/admin/holidays"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-accent"
+                title="Gérer les jours fériés globaux"
+              >
+                <CalendarX className="h-4 w-4" />
+                Jours fériés
+              </Link>
+            </>
           )}
+          <Link
+            href={`/users/${session.userId}/leaves`}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-accent"
+            title="Gérer mes congés"
+          >
+            <CalendarDays className="h-4 w-4" />
+            Mes congés
+          </Link>
         </nav>
 
         <div className="ml-auto flex items-center gap-3">

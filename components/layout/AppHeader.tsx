@@ -4,6 +4,7 @@ import {
   CalendarX,
   KanbanSquare,
   LayoutDashboard,
+  Sparkles,
   Users,
 } from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
@@ -42,6 +43,14 @@ export function AppHeader({ session }: Props) {
           >
             <KanbanSquare className="h-4 w-4" />
             Projets
+          </Link>
+          <Link
+            href="/estimations"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-accent"
+            title="Features en attente d'estimation"
+          >
+            <Sparkles className="h-4 w-4" />
+            Estimations
           </Link>
           {canPilot && (
             <>

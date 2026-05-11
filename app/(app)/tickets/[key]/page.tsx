@@ -128,9 +128,19 @@ export default async function TicketPage({ params }: PageProps) {
             {ticket.parent && (
               <Link
                 href={`/tickets/${ticket.parent.key}`}
-                className="text-xs text-muted-foreground hover:text-foreground mt-1 inline-block"
+                className={
+                  ticket.type === "TASK"
+                    ? "text-xs text-primary hover:underline mt-1 inline-flex items-center gap-1 font-medium"
+                    : "text-xs text-muted-foreground hover:text-foreground mt-1 inline-block"
+                }
+                title={
+                  ticket.type === "TASK"
+                    ? "Consulter la feature parente pour relire les spécifications"
+                    : undefined
+                }
               >
-                {`\u2196 ${ticket.parent.key} - ${ticket.parent.title}`}
+                {ticket.type === "TASK" ? "Spécifications : " : "\u2196 "}
+                {ticket.parent.key} - {ticket.parent.title}
               </Link>
             )}
           </div>

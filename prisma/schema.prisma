@@ -230,7 +230,7 @@ model TestExecution {
   testRunId     String
   testRun       TestRun    @relation(fields: [testRunId], references: [id], onDelete: Cascade)
   testCaseId    String
-  testCase      TestCase   @relation(fields: [testCaseId], references: [id])
+  testCase      TestCase   @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
   testerId      String
   tester        User       @relation(fields: [testerId], references: [id])
   result        TestResult

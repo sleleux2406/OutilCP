@@ -289,11 +289,9 @@ model AuditLog {
 // Gestion des disponibilités : jours fériés + congés
 // ─────────────────────────────────────────────────────────────
 
-/**
- * Jours fériés globaux (toutes équipes confondues).
- * Gérés par ADMIN/PO dans l'interface admin.
- * La date est stockée en UTC pour éviter les surprises de fuseau horaire.
- */
+// Jours fériés globaux (toutes équipes confondues).
+// Gérés par ADMIN/PO dans l'interface admin.
+// La date est stockée en UTC pour éviter les surprises de fuseau horaire.
 model Holiday {
   id        String   @id @default(cuid())
   date      DateTime @db.Date
@@ -304,11 +302,9 @@ model Holiday {
   @@index([date])
 }
 
-/**
- * Congés individuels d'un utilisateur.
- * Chaque ligne représente une plage continue [startDate, endDate] inclusive.
- * Le champ label est optionnel (ex: "Vacances été").
- */
+// Congés individuels d'un utilisateur.
+// Chaque ligne représente une plage continue [startDate, endDate] inclusive.
+// Le champ label est optionnel (ex: "Vacances été").
 model UserLeave {
   id        String   @id @default(cuid())
   userId    String

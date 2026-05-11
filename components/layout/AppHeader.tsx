@@ -4,6 +4,7 @@ import {
   CalendarX,
   KanbanSquare,
   LayoutDashboard,
+  Users,
 } from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import type { Session } from "@/lib/auth";
@@ -50,6 +51,14 @@ export function AppHeader({ session }: Props) {
               >
                 <LayoutDashboard className="h-4 w-4" />
                 Pilotage
+              </Link>
+              <Link
+                href="/admin/team"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-accent"
+                title="Gérer l'équipe et leurs congés"
+              >
+                <Users className="h-4 w-4" />
+                Équipe
               </Link>
               <Link
                 href="/admin/holidays"

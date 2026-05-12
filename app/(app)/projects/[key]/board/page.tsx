@@ -7,6 +7,7 @@ import { getProjectRollups } from "@/lib/time-rollup";
 import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { CreateBugButton } from "@/components/bugs/CreateBugButton";
 import { CreateTicketButton } from "@/components/tickets/CreateTicketButton";
+import { CreateRunButton } from "@/components/runs/CreateRunButton";
 import { KANBAN_VISIBLE_TYPES_BY_ROLE, isFeatureNeedingEstimation } from "@/lib/tickets/hierarchy";
 import type { KanbanTicket } from "@/lib/tickets/types";
 
@@ -25,7 +26,7 @@ export default async function BoardPage({ params }: PageProps) {
 
   const project = await prisma.project.findUnique({
     where: { key },
-    select: { id: true, key: true, name: true },
+    select: { id: true, key: true, name: true, parentProjectId: true },
   });
   if (!project) notFound();
 
@@ -167,6 +168,12 @@ export default async function BoardPage({ params }: PageProps) {
         <div className="ml-auto flex items-center gap-2">
           <CreateTicketButton projectId={project.id} userRole={session.role} />
           <CreateBugButton projectId={project.id} />
+          <CreateRunButton
+            parentProjectId={project.id}
+            parentProjectKey={project.key}
+            userRole={session.role}
+            isSubProject={project.parentProjectId !== null}
+          />
           {canPilot && (
             <Link
               href={`/projects/${project.key}/overview`}

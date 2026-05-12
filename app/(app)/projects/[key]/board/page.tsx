@@ -8,6 +8,7 @@ import { KanbanBoard } from "@/components/kanban/KanbanBoard";
 import { CreateBugButton } from "@/components/bugs/CreateBugButton";
 import { CreateTicketButton } from "@/components/tickets/CreateTicketButton";
 import { CreateRunButton } from "@/components/runs/CreateRunButton";
+import { SubProjectsList } from "@/components/runs/SubProjectsList";
 import { KANBAN_VISIBLE_TYPES_BY_ROLE, isFeatureNeedingEstimation } from "@/lib/tickets/hierarchy";
 import type { KanbanTicket } from "@/lib/tickets/types";
 
@@ -26,7 +27,13 @@ export default async function BoardPage({ params }: PageProps) {
 
   const project = await prisma.project.findUnique({
     where: { key },
-    select: { id: true, key: true, name: true, parentProjectId: true },
+    select: {
+      id: true,
+      key: true,
+      name: true,
+      parentProjectId: true,
+      parentProject: { select: { key: true, name: true } },
+    },
   });
   if (!project) notFound();
 
@@ -152,6 +159,7 @@ export default async function BoardPage({ params }: PageProps) {
   });
 
   const canPilot = session.role === "ADMIN" || session.role === "PRODUCT_OWNER";
+  const isSubProject = project.parentProjectId !== null;
 
   return (
     <div className="flex flex-col h-[calc(100vh-3.5rem)]">
@@ -162,9 +170,29 @@ export default async function BoardPage({ params }: PageProps) {
         >
           <ChevronLeft className="h-4 w-4" /> Projets
         </Link>
+        {/* Breadcrumb intermédiaire si sous-projet : lien vers le parent */}
+        {isSubProject && project.parentProject && (
+          <>
+            <span className="text-muted-foreground/40">/</span>
+            <Link
+              href={`/projects/${project.parentProject.key}/board`}
+              className="text-sm text-muted-foreground hover:text-foreground"
+            >
+              {project.parentProject.name}
+            </Link>
+          </>
+        )}
         <span className="text-muted-foreground/40">/</span>
         <h1 className="text-lg font-semibold">{project.name}</h1>
         <span className="font-mono text-xs text-muted-foreground">{project.key}</span>
+        {isSubProject && (
+          <span
+            className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded bg-amber-500/15 text-amber-700 dark:text-amber-300"
+            title="Sous-projet RUN généré depuis une rétro-spécification"
+          >
+            RUN
+          </span>
+        )}
         <div className="ml-auto flex items-center gap-2">
           <CreateTicketButton projectId={project.id} userRole={session.role} />
           <CreateBugButton projectId={project.id} />
@@ -172,7 +200,7 @@ export default async function BoardPage({ params }: PageProps) {
             parentProjectId={project.id}
             parentProjectKey={project.key}
             userRole={session.role}
-            isSubProject={project.parentProjectId !== null}
+            isSubProject={isSubProject}
           />
           {canPilot && (
             <Link
@@ -185,6 +213,9 @@ export default async function BoardPage({ params }: PageProps) {
           )}
         </div>
       </header>
+
+      {/* Bandeau des sous-projets RUN : uniquement sur un projet racine */}
+      {!isSubProject && <SubProjectsList parentProjectId={project.id} />}
 
       <KanbanBoard
         projectId={project.id}

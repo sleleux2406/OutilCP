@@ -96,15 +96,22 @@ model Session {
 
 model Project {
   id          String   @id @default(cuid())
-  key         String   @unique // ex: "PROJ"
+  key         String   @unique // ex: "PROJ" ou "PROJ-RUN-1"
   name        String
   description String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
+  // Relation de sous-projet : un RUN est rattaché à un projet parent.
+  // Null = projet racine. Non-null = sous-projet (typiquement créé via upload de spec).
+  parentProjectId String?
+  parentProject   Project?  @relation("ProjectSubProjects", fields: [parentProjectId], references: [id], onDelete: Cascade)
+  subProjects     Project[] @relation("ProjectSubProjects")
+
   tickets Ticket[]
 
   @@index([key])
+  @@index([parentProjectId])
 }
 
 // ─────────────────────────────────────────────────────────────

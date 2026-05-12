@@ -5,6 +5,7 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, canEditTicket } from "@/lib/auth";
 import { LogTimeSchema, type LogTimeInput } from "@/lib/tickets/schemas";
 import { recomputeAndSaveEndDate, rollupDatesToParent } from "@/lib/tickets/dates";
+import { freezeFeatureEstimationIfNeeded } from "@/lib/tickets/freeze-estimation";
 
 export type LogTimeResult =
   | { ok: true; totalLoggedMinutes: number }
@@ -67,6 +68,12 @@ export async function logTimeAction(input: LogTimeInput): Promise<LogTimeResult>
   }
 
   const result = await prisma.$transaction(async (tx) => {
+    // GEL DE L'ESTIM FEATURE : AVANT d'incrémenter loggedMinutes, on capture
+    // éventuellement la somme hybride courante dans la Feature parente (s'il
+    // s'agit du tout premier log du sous-arbre). Après ça, l'estim ne bougera
+    // plus même si de nouvelles Tasks sont ajoutées.
+    await freezeFeatureEstimationIfNeeded(tx, data.ticketId);
+
     await tx.timeEntry.create({
       data: {
         ticketId: data.ticketId,

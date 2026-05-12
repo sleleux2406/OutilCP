@@ -2,6 +2,7 @@ import Link from "next/link";
 import {
   CalendarDays,
   CalendarX,
+  Download,
   KanbanSquare,
   LayoutDashboard,
   Sparkles,
@@ -28,6 +29,9 @@ const ROLE_LABEL: Record<Session["role"], string> = {
  */
 export function AppHeader({ session }: Props) {
   const canPilot = session.role === "ADMIN" || session.role === "PRODUCT_OWNER";
+  // Les développeurs n'ont pas accès au téléchargement des specs (doc interne
+  // qui contient notamment le modèle sécurité et les rate limits).
+  const canDownloadSpecs = session.role !== "DEVELOPER";
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -90,6 +94,17 @@ export function AppHeader({ session }: Props) {
         </nav>
 
         <div className="ml-auto flex items-center gap-3">
+          {canDownloadSpecs && (
+            <a
+              href="/api/specs/download"
+              download
+              className="hidden md:inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border hover:bg-accent transition-colors"
+              title="Télécharger les spécifications fonctionnelles de l'application (JSON)"
+            >
+              <Download className="h-3.5 w-3.5" aria-hidden />
+              Spécifications
+            </a>
+          )}
           <div className="hidden sm:flex items-center gap-2">
             <div className="text-right">
               <div className="text-xs font-medium">{session.userName}</div>

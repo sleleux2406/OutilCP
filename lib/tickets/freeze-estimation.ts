@@ -53,36 +53,24 @@ export async function freezeFeatureEstimationIfNeeded(
  * Vérifie si la Feature a déjà du log dans son sous-arbre.
  * Si c'est la PREMIÈRE fois qu'un log arrive, on capture la somme hybride
  * actuelle (estim propre + somme des Tasks/Bugs chiffrés enfants) dans
- * estimatedMinutes propre. Ensuite l'estim devient figée.
+ * estimatedMinutes propre ET on horodate frozenAt. Ensuite l'estim devient
+ * figée et la vue SQL peut distinguer les Tasks ajoutées après le gel.
  */
 async function freezeSingleFeature(
   tx: Prisma.TransactionClient,
   featureId: string,
   currentEstimatedMinutes: number
 ): Promise<void> {
-  // Vérifier s'il y a déjà du log quelque part dans le sous-arbre.
-  // Si oui, l'estim est déjà gelée, rien à faire.
-  // (On utilise une requête récursive ou on somme simplement les loggedMinutes)
-  const subtreeLogs = await tx.$queryRaw<Array<{ total: bigint }>>`
-    WITH RECURSIVE sub AS (
-      SELECT id, "loggedMinutes" FROM "Ticket" WHERE id = ${featureId}
-      UNION ALL
-      SELECT c.id, c."loggedMinutes"
-      FROM "Ticket" c
-      JOIN sub ON c."parentId" = sub.id
-    )
-    SELECT COALESCE(SUM("loggedMinutes"), 0)::bigint AS total FROM sub
-  `;
+  const feature = await tx.ticket.findUnique({
+    where: { id: featureId },
+    select: { frozenAt: true },
+  });
 
-  const totalLogged = Number(subtreeLogs[0]?.total ?? 0);
-
-  // S'il y a déjà du log : l'estim est déjà figée (on a déjà écrit la valeur
-  // dans estimatedMinutes au premier log). Rien à refaire.
-  if (totalLogged > 0) return;
+  // Si frozenAt est déjà rempli : gel déjà effectué, rien à faire.
+  if (feature?.frozenAt) return;
 
   // C'est le premier log qui va arriver. On calcule la somme hybride et on
-  // l'écrit dans estimatedMinutes propre de la Feature.
-  // Somme des estimations des enfants Task/Bug CHIFFRÉS uniquement.
+  // l'écrit dans estimatedMinutes propre de la Feature + on horodate.
   const agg = await tx.ticket.aggregate({
     where: {
       parentId: featureId,
@@ -95,11 +83,11 @@ async function freezeSingleFeature(
   const childrenEstim = agg._sum.estimatedMinutes ?? 0;
   const snapshot = currentEstimatedMinutes + childrenEstim;
 
-  // On écrit uniquement si la valeur change (évite un write inutile)
-  if (snapshot !== currentEstimatedMinutes) {
-    await tx.ticket.update({
-      where: { id: featureId },
-      data: { estimatedMinutes: snapshot },
-    });
-  }
+  await tx.ticket.update({
+    where: { id: featureId },
+    data: {
+      estimatedMinutes: snapshot,
+      frozenAt: new Date(),
+    },
+  });
 }

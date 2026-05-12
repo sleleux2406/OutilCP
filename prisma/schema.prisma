@@ -135,6 +135,10 @@ model Ticket {
   // Si false, la tâche est une "TODO" : elle ne compte PAS dans la somme
   // d'estimation/RAF/atterrissage du parent. Par défaut true (comportement classique).
   isEstimated     Boolean @default(true)
+  // Horodatage du premier log dans le sous-arbre d'une Feature (snapshot du gel).
+  // Null tant qu'aucun gel ne s'est produit. Permet de distinguer les Tasks
+  // enfants créées avant vs après le gel pour le calcul du RAF.
+  frozenAt DateTime?
   // Les roll-ups (estimé total, loggé total, reste total, projection) sont
   // calculés via la vue SQL ticket_rollup
 

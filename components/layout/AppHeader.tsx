@@ -11,6 +11,7 @@ import {
 import { LogoutButton } from "@/components/auth/LogoutButton";
 import type { Session } from "@/lib/auth";
 import { Badge } from "@/components/ui/badge";
+import { countFeaturesInTestingOnRoots } from "@/lib/specs/spec-gap";
 
 interface Props {
   session: Session;
@@ -27,11 +28,18 @@ const ROLE_LABEL: Record<Session["role"], string> = {
  * Header global affiché sur toutes les pages authentifiées.
  * Server Component : reçoit la session en prop depuis le layout applicatif.
  */
-export function AppHeader({ session }: Props) {
+export async function AppHeader({ session }: Props) {
   const canPilot = session.role === "ADMIN" || session.role === "PRODUCT_OWNER";
   // Les développeurs n'ont pas accès au téléchargement des specs (doc interne
   // qui contient notamment le modèle sécurité et les rate limits).
   const canDownloadSpecs = session.role !== "DEVELOPER";
+
+  // F02.4 : compteur de retard de spécification. On ne fait la requête que si
+  // l'utilisateur a accès au bouton Spécifications (sinon c'est une requête
+  // inutile sur toutes les pages).
+  const specGapCount = canDownloadSpecs
+    ? await countFeaturesInTestingOnRoots()
+    : 0;
 
   return (
     <header className="sticky top-0 z-40 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80">
@@ -95,15 +103,25 @@ export function AppHeader({ session }: Props) {
 
         <div className="ml-auto flex items-center gap-3">
           {canDownloadSpecs && (
-            <a
-              href="/api/specs/download"
-              download
-              className="hidden md:inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border hover:bg-accent transition-colors"
-              title="Télécharger les spécifications fonctionnelles de l'application (JSON)"
-            >
-              <Download className="h-3.5 w-3.5" aria-hidden />
-              Spécifications
-            </a>
+            <div className="hidden md:flex items-center gap-1.5">
+              <a
+                href="/api/specs/download"
+                download
+                className="inline-flex items-center gap-1.5 text-xs px-2.5 py-1.5 rounded-md border hover:bg-accent transition-colors"
+                title="Télécharger les spécifications fonctionnelles de l'application (JSON)"
+              >
+                <Download className="h-3.5 w-3.5" aria-hidden />
+                Spécifications
+              </a>
+              {specGapCount > 0 && (
+                <span
+                  className="inline-flex items-center justify-center min-w-[1.25rem] h-5 px-1.5 text-[10px] font-bold rounded-full bg-destructive text-destructive-foreground tabular-nums"
+                  title={`${specGapCount} Feature${specGapCount > 1 ? "s" : ""} en test mais non encore exportée${specGapCount > 1 ? "s" : ""} vers un RUN. Pensez à mettre à jour la documentation.`}
+                >
+                  {specGapCount}
+                </span>
+              )}
+            </div>
           )}
           <div className="hidden sm:flex items-center gap-2">
             <div className="text-right">

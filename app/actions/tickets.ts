@@ -9,7 +9,7 @@ import { rateLimit } from "@/lib/rate-limit";
 import { canAttach, ALLOWED_PARENTS } from "@/lib/tickets/hierarchy";
 import { nextTicketKey } from "@/lib/tickets/key-generator";
 import { buildPath } from "@/lib/tickets/path";
-import { computeEstimationEditability } from "@/lib/tickets/estimation-rules";
+import { computeEstimationEditability, hasAggregatingChildren } from "@/lib/tickets/estimation-rules";
 import { recomputeAndSaveEndDate, rollupDatesToParent } from "@/lib/tickets/dates";
 import { shiftBusinessDays, toNextBusinessDay, countBusinessDays } from "@/lib/dates/business-days";
 
@@ -339,11 +339,14 @@ export async function updateTicketAction(
       remainingMinutes: true,
       // Nécessaire pour appliquer les règles métier (lib/tickets/estimation-rules)
       status: true,
+      type: true,
       loggedMinutes: true,
       // Planning : nécessaire pour le décalage start → end
       startDate: true,
       endDate: true,
-      _count: { select: { children: true } },
+      // Liste des types d'enfants : permet de savoir si une Feature a des
+      // Task/Bug (agrégeant) ou seulement des US legacy (non agrégeant).
+      children: { select: { type: true } },
     },
   });
   if (!ticket) return { ok: false, error: "NOT_FOUND" };
@@ -354,9 +357,13 @@ export async function updateTicketAction(
 
   // Appliquer les règles de verrouillage estimation / RAF [règles métier]
   const editability = computeEstimationEditability({
+    type: ticket.type,
     status: ticket.status,
     loggedMinutes: ticket.loggedMinutes,
-    hasChildren: ticket._count.children > 0,
+    hasAggregatingChildren: hasAggregatingChildren(
+      ticket.type,
+      ticket.children.map((c) => c.type)
+    ),
   });
 
   // Tentative de modifier estimatedMinutes alors que verrouillé → refus

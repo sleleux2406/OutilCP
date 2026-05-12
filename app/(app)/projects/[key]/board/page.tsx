@@ -131,7 +131,8 @@ export default async function BoardPage({ params }: PageProps) {
       parentKey: t.parent?.key ?? null,
       needsEstimation: isFeatureNeedingEstimation(
         t.type,
-        t.children.map((c) => c.type)
+        t.children.map((c) => c.type),
+        t.estimatedMinutes
       ),
       testStats: testsByTicket.get(t.id),
       rollup: rollup

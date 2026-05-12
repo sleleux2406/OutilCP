@@ -88,17 +88,26 @@ export const KANBAN_VISIBLE_TYPES_BY_ROLE: Record<
 };
 
 /**
- * Une Feature est "à estimer" si elle n'a aucun enfant Task ou Bug.
- * (Les User Stories ne comptent pas — une Feature peut en avoir mais
- * l'estimation concrète se fait via la session d'estimation qui crée des Tasks.)
+ * Une Feature est "à estimer" si elle respecte DEUX conditions :
+ *   1. Aucun enfant Task ou Bug n'existe (rien de concret saisi)
+ *   2. Son estimation initiale n'a pas été renseignée manuellement (estimatedMinutes = 0)
  *
- * À utiliser sur une Feature avec la liste de ses enfants déjà chargée.
+ * Dès que l'une des deux conditions tombe, la Feature est considérée comme
+ * chiffrée et le badge "À estimer" disparaît.
+ *
+ * Logique hybride (voir règles métier) :
+ *   - Si le PO saisit 10j en estimation initiale ET qu'on ajoute 3 Tasks
+ *     chiffrées de 2j, la vue SQL totalEstimatedMinutes agrège automatiquement
+ *     à 10 + 6 = 16j (elle somme node + descendants).
  */
 export function isFeatureNeedingEstimation(
   type: TicketType,
-  childrenTypes: TicketType[]
+  childrenTypes: TicketType[],
+  estimatedMinutes: number
 ): boolean {
   if (type !== "FEATURE") return false;
-  // Tant qu'il n'y a aucune Task ni Bug enfant, la Feature est à estimer
-  return !childrenTypes.some((t) => t === "TASK" || t === "BUG");
+  const hasTaskOrBug = childrenTypes.some((t) => t === "TASK" || t === "BUG");
+  if (hasTaskOrBug) return false;
+  if (estimatedMinutes > 0) return false;
+  return true;
 }

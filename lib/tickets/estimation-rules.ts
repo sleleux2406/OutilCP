@@ -1,20 +1,31 @@
-import type { TicketStatus } from "@prisma/client";
+import type { TicketStatus, TicketType } from "@prisma/client";
 
 /**
  * Règles métier sur les champs Estimation Initiale et Reste à Faire (RAF).
  *
  * Règles :
- *   1. Ticket DONE          → RAF forcé à 0, tout verrouillé sauf statut
- *   2. À froid (loggé = 0)  → estimated modifiable ; RAF auto-sync sur estimated
- *   3. À chaud (loggé > 0)  → estimated verrouillé ; RAF modifiable manuellement
- *   4. Ticket avec enfants  → estimated + RAF verrouillés (la vue SQL agrège
- *                              automatiquement à partir des enfants)
+ *   1. Ticket DONE                       → RAF forcé à 0, tout verrouillé
+ *   2. À froid (loggé = 0)               → estimated modifiable ; RAF auto-sync
+ *   3. À chaud (loggé > 0)               → estimated verrouillé ; RAF modifiable
+ *   4. Ticket parent (avec enfants chiffrés) → tout verrouillé, agrégé par vue SQL
+ *
+ * Cas particulier FEATURE :
+ *   - Une Feature peut avoir une estimation initiale saisie manuellement par le PO
+ *   - Elle reste modifiable tant qu'aucune Task ou Bug enfant n'est chiffrée
+ *   - Logique hybride : estim manuelle + somme des enfants chiffrés côté vue SQL
  */
 
 export interface EstimationContext {
+  type: TicketType;
   status: TicketStatus;
   loggedMinutes: number;
-  hasChildren: boolean;
+  /**
+   * Est-ce que le ticket a des enfants qui comptent dans l'agrégation ?
+   * Pour Epic/US : true si ≥ 1 enfant (peu importe le type).
+   * Pour Feature : true si ≥ 1 enfant Task ou Bug (US legacy exclue).
+   * Pour Task/Bug : toujours false.
+   */
+  hasAggregatingChildren: boolean;
 }
 
 export interface EstimationEditability {
@@ -43,8 +54,8 @@ export function computeEstimationEditability(
     };
   }
 
-  // Règle 4 : ticket parent → valeurs agrégées depuis les enfants
-  if (ctx.hasChildren) {
+  // Règle 4 : ticket parent avec enfants qui agrègent → valeurs auto
+  if (ctx.hasAggregatingChildren) {
     return {
       canEditEstimated: false,
       canEditRemaining: false,
@@ -75,7 +86,7 @@ export function getLockReasonLabel(reason: EstimationEditability["lockReason"]):
     case "DONE":
       return "Ticket terminé : estimation et reste à faire verrouillés.";
     case "HAS_CHILDREN":
-      return "Ce ticket a des enfants : ses valeurs sont calculées automatiquement à partir d'eux.";
+      return "Ce ticket a des enfants chiffrés : ses valeurs sont calculées automatiquement à partir d'eux.";
     case "COLD_AUTO_SYNC":
       return "Aucun temps loggé : le reste à faire se synchronise automatiquement sur l'estimation initiale.";
     case "HOT_ESTIMATED_FROZEN":
@@ -83,4 +94,22 @@ export function getLockReasonLabel(reason: EstimationEditability["lockReason"]):
     default:
       return "";
   }
+}
+
+/**
+ * Helper : détermine si les enfants d'un ticket donné "comptent" pour
+ * l'agrégation.
+ *
+ * Pour une FEATURE, seuls les enfants Task/Bug comptent (pas les US legacy).
+ * Pour les autres types, tout enfant compte.
+ */
+export function hasAggregatingChildren(
+  parentType: TicketType,
+  childrenTypes: TicketType[]
+): boolean {
+  if (childrenTypes.length === 0) return false;
+  if (parentType === "FEATURE") {
+    return childrenTypes.some((t) => t === "TASK" || t === "BUG");
+  }
+  return true;
 }

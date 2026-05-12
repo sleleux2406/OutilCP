@@ -11,6 +11,7 @@ import {
   getPriorityMeta,
 } from "@/lib/tickets/metadata";
 import { isTestable } from "@/lib/tickets/hierarchy";
+import { hasAggregatingChildren } from "@/lib/tickets/estimation-rules";
 import { formatDate, formatDays, formatDateTime, cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
@@ -185,7 +186,11 @@ export default async function TicketPage({ params }: PageProps) {
               remainingMinutes: ticket.remainingMinutes,
               loggedMinutes: ticket.loggedMinutes,
               status: ticket.status,
-              hasChildren: ticket.children.length > 0,
+              type: ticket.type,
+              hasAggregatingChildren: hasAggregatingChildren(
+                ticket.type,
+                ticket.children.map((c) => c.type)
+              ),
               assigneeId: ticket.assigneeId,
               startDate: ticket.startDate,
             }}

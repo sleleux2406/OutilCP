@@ -40,9 +40,9 @@ export type ListToEstimateResult =
   | { ok: false; error: "VALIDATION" };
 
 /**
- * Liste toutes les Features qui n'ont aucun enfant Task ou Bug.
- * Ce sont les Features "à estimer" : la session d'estimation doit être
- * lancée dessus pour les décomposer en Tasks.
+ * Liste toutes les Features qui ne sont pas encore estimées :
+ *   - aucun enfant Task ou Bug
+ *   - ET pas d'estimation initiale saisie manuellement (estimatedMinutes = 0)
  *
  * Sécurité :
  *   - requireAuth : tout utilisateur connecté peut consulter la liste
@@ -54,6 +54,7 @@ export async function listFeaturesToEstimateAction(): Promise<ListToEstimateResu
   const rows = await prisma.ticket.findMany({
     where: {
       type: TicketType.FEATURE,
+      estimatedMinutes: 0,
       children: {
         none: {
           OR: [{ type: TicketType.TASK }, { type: TicketType.BUG }],

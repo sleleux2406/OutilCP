@@ -42,7 +42,13 @@ export interface TicketEditorInitial {
   remainingMinutes: number | null;
   loggedMinutes: number;
   status: import("@prisma/client").TicketStatus;
-  hasChildren: boolean;
+  type: import("@prisma/client").TicketType;
+  /**
+   * True si le ticket a des enfants qui comptent dans l'agrégation.
+   * Pour une Feature : au moins un enfant Task ou Bug.
+   * Pour les autres : au moins un enfant.
+   */
+  hasAggregatingChildren: boolean;
   assigneeId: string | null;
   startDate: Date | null;
 }
@@ -114,9 +120,10 @@ export function TicketEditor({ ticket, canEdit }: Props) {
 
   // Règles métier : décide ce qui est modifiable
   const editability = computeEstimationEditability({
+    type: ticket.type,
     status: ticket.status,
     loggedMinutes: ticket.loggedMinutes,
-    hasChildren: ticket.hasChildren,
+    hasAggregatingChildren: ticket.hasAggregatingChildren,
   });
   const lockLabel = getLockReasonLabel(editability.lockReason);
 
@@ -328,7 +335,7 @@ export function TicketEditor({ ticket, canEdit }: Props) {
             <div>
               <Label htmlFor="edit-start-date">
                 Date de début
-                {ticket.hasChildren && (
+                {ticket.hasAggregatingChildren && (
                   <span className="ml-1 text-[10px] text-muted-foreground font-normal">
                     (calculée depuis les enfants)
                   </span>
@@ -339,11 +346,11 @@ export function TicketEditor({ ticket, canEdit }: Props) {
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                disabled={ticket.hasChildren}
+                disabled={ticket.hasAggregatingChildren}
               />
               <p className="text-[10px] text-muted-foreground mt-1">
-                {ticket.hasChildren
-                  ? "La date de début et la date de fin sont agrégées depuis les User Stories."
+                {ticket.hasAggregatingChildren
+                  ? "La date de début et la date de fin sont agrégées depuis les enfants chiffrés."
                   : "Jour ouvré uniquement (week-end normalisé au lundi suivant). La date de fin est calculée automatiquement."}
               </p>
             </div>

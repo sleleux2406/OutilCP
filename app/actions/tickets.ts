@@ -106,6 +106,9 @@ const CreateTicketSchema = z
     priority: z.number().int().min(1).max(5).default(3),
     estimatedMinutes: z.number().int().min(0).max(60 * 24 * 30).default(0),
     assigneeId: z.string().cuid().nullable().optional(),
+    // Défaut true = chiffrée. Si false, c'est une TODO qui ne compte pas
+    // dans l'agrégation parent.
+    isEstimated: z.boolean().default(true),
   })
   // Validation : EPIC ne doit pas avoir de parentId, les autres types doivent en avoir un
   .refine(
@@ -208,6 +211,9 @@ export async function createTicketAction(
         description: data.description ?? null,
         priority: data.priority,
         estimatedMinutes: data.estimatedMinutes,
+        // Si TODO (isEstimated=false), l'estimation doit être 0 de toute façon
+        // pour cohérence métier (on ne demande pas de jours à une TODO)
+        isEstimated: data.isEstimated,
         status: TicketStatus.BACKLOG,
         parentId: parent?.id ?? null,
         path: parent ? buildPath(parent.path, parent.id) : "/",

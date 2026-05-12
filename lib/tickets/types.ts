@@ -20,6 +20,8 @@ export interface KanbanTicket {
   parentKey: string | null;
   /** True si c'est une Feature sans Task/Bug enfant → workflow session d'estimation. */
   needsEstimation?: boolean;
+  /** False si la tâche est une TODO non chiffrée (ne compte pas dans l'agrégation). */
+  isEstimated?: boolean;
   testStats?: { passed: number; failed: number; total: number };
   rollup: {
     totalEstimatedMinutes: number;

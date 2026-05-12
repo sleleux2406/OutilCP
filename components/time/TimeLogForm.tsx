@@ -62,6 +62,8 @@ export function TimeLogForm({ ticketId, onLogged, compact = false }: Props) {
             ? "Vous n'êtes pas autorisé à logger sur ce ticket"
             : res.error === "NOT_FOUND"
             ? "Ticket introuvable"
+            : res.error === "TODO_TASK"
+            ? "Impossible de logger du temps sur une tâche TODO (non chiffrée)"
             : "Saisie invalide";
         toast.error(msg);
         return;

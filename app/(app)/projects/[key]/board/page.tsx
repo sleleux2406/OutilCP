@@ -52,6 +52,7 @@ export default async function BoardPage({ params }: PageProps) {
         loggedMinutes: true,
         remainingMinutes: true,
         endDate: true,
+        isEstimated: true,
         assignee: { select: { id: true, name: true } },
         parent: { select: { key: true } },
         // Pour déduire l'état "à estimer" d'une Feature côté UI
@@ -134,6 +135,7 @@ export default async function BoardPage({ params }: PageProps) {
         t.children.map((c) => c.type),
         t.estimatedMinutes
       ),
+      isEstimated: t.isEstimated,
       testStats: testsByTicket.get(t.id),
       rollup: rollup
         ? {

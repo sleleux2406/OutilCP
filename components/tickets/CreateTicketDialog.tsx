@@ -69,6 +69,7 @@ export function CreateTicketDialog({
   );
   const [priority, setPriority] = useState(3);
   const [estimatedDays, setEstimatedDays] = useState("");
+  const [isEstimated, setIsEstimated] = useState(true);
   const [assigneeId, setAssigneeId] = useState<string>("");
   const [assignableUsers, setAssignableUsers] = useState<
     { id: string; name: string; role: string }[]
@@ -128,8 +129,10 @@ export function CreateTicketDialog({
         description: description.trim() || undefined,
         parentId: parentId ?? null,
         priority,
-        estimatedMinutes: cappedMinutes,
+        // Si TODO : on force l'estimation à 0 pour cohérence (la tâche ne compte pas)
+        estimatedMinutes: isEstimated ? cappedMinutes : 0,
         assigneeId: assigneeId || null,
+        isEstimated,
       });
       if (!res.ok) {
         const msg = {
@@ -246,7 +249,14 @@ export function CreateTicketDialog({
               </Select>
             </div>
             <div>
-              <Label htmlFor="ticket-estimated">Estimé (jours)</Label>
+              <Label htmlFor="ticket-estimated">
+                Estimé (jours)
+                {!isEstimated && (
+                  <span className="ml-1 text-[10px] text-muted-foreground font-normal">
+                    (ignoré pour une TODO)
+                  </span>
+                )}
+              </Label>
               <Input
                 id="ticket-estimated"
                 type="number"
@@ -256,10 +266,51 @@ export function CreateTicketDialog({
                 value={estimatedDays}
                 onChange={(e) => setEstimatedDays(e.target.value)}
                 placeholder="0"
+                disabled={!isEstimated}
               />
               <p className="text-[10px] text-muted-foreground mt-1">1 jour = 8 heures</p>
             </div>
           </div>
+
+          {/* Switch Chiffrée / TODO — uniquement pertinent pour Task */}
+          {type === "TASK" && (
+            <div className="border rounded-md p-3 bg-muted/30">
+              <div className="flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <Label className="mb-1 block">Type de tâche</Label>
+                  <p className="text-[10px] text-muted-foreground leading-tight">
+                    {isEstimated
+                      ? "Chiffrée : l'estimation s'ajoute au total de la Feature parente."
+                      : "TODO : simple rappel, ne compte PAS dans l'atterrissage de la Feature."}
+                  </p>
+                </div>
+                <div className="flex items-center gap-1 shrink-0">
+                  <button
+                    type="button"
+                    onClick={() => setIsEstimated(true)}
+                    className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
+                      isEstimated
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background hover:bg-accent"
+                    }`}
+                  >
+                    Chiffrée
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsEstimated(false)}
+                    className={`text-xs px-2.5 py-1 rounded-md border transition-colors ${
+                      !isEstimated
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background hover:bg-accent"
+                    }`}
+                  >
+                    TODO
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Assignee */}
           <div>

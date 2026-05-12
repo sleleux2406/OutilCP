@@ -8,7 +8,7 @@ import { recomputeAndSaveEndDate, rollupDatesToParent } from "@/lib/tickets/date
 
 export type LogTimeResult =
   | { ok: true; totalLoggedMinutes: number }
-  | { ok: false; error: "FORBIDDEN" | "NOT_FOUND" | "VALIDATION" };
+  | { ok: false; error: "FORBIDDEN" | "NOT_FOUND" | "VALIDATION" | "TODO_TASK" };
 
 /**
  * Logger du temps sur un ticket.
@@ -16,8 +16,10 @@ export type LogTimeResult =
  * Sécurité :
  *   - Zod valide (cuid, minutes > 0 && <= 14400 = 30j, description <= 500 chars) [A03]
  *   - requireAuth() + canEditTicket() : seul un assigné/créateur/PO/Admin peut logger [A01]
+ *   - Refus sur les tâches marquées TODO (isEstimated=false) : elles ne
+ *     comptent pas dans l'agrégation, donc le log est désactivé pour éviter
+ *     toute confusion métier.
  *   - Transaction : TimeEntry + mise à jour Ticket.loggedMinutes + AuditLog atomiques [A09]
- *   - La vue ticket_rollup se met à jour automatiquement (vue calculée, pas matérialisée)
  */
 export async function logTimeAction(input: LogTimeInput): Promise<LogTimeResult> {
   const session = await requireAuth();
@@ -36,9 +38,15 @@ export async function logTimeAction(input: LogTimeInput): Promise<LogTimeResult>
       parentId: true,
       type: true,
       key: true,
+      isEstimated: true,
     },
   });
   if (!ticket) return { ok: false, error: "NOT_FOUND" };
+
+  // Règle métier : pas de log sur les TODO (tâches non chiffrées)
+  if (!ticket.isEstimated) {
+    return { ok: false, error: "TODO_TASK" };
+  }
 
   // Seules les feuilles peuvent avoir du temps loggé direct.
   // Sur Epic/Feature on veut éviter la double comptabilisation (elles remontent via roll-up).

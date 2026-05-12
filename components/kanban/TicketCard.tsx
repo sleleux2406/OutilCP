@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarClock, Clock, FlaskConical, Sparkles, User } from "lucide-react";
+import { CalendarClock, CheckCircle2, Clock, FlaskConical, Sparkles, User } from "lucide-react";
 import { cn, formatDate, formatDays } from "@/lib/utils";
 import { TICKET_TYPE_META, getPriorityMeta } from "@/lib/tickets/metadata";
 import { isOverBudget } from "@/lib/tickets/types";
@@ -98,6 +98,19 @@ export function TicketCard({ ticket, currentUserId, isOverlay = false }: Props) 
             <Sparkles className="w-3 h-3" aria-hidden />
             À estimer
           </Link>
+        </div>
+      )}
+
+      {/* Badge TODO — tâche non chiffrée */}
+      {ticket.isEstimated === false && (
+        <div className="mb-2">
+          <span
+            className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-slate-500/15 text-slate-700 dark:text-slate-300"
+            title="Tâche TODO : non chiffrée, ne compte pas dans l'atterrissage de la Feature parente."
+          >
+            <CheckCircle2 className="w-3 h-3" aria-hidden />
+            TODO · Hors estimation
+          </span>
         </div>
       )}
 

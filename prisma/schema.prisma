@@ -132,6 +132,9 @@ model Ticket {
   // Reste à faire estimé par le développeur. NULL = pas encore ré-estimé,
   // dans ce cas on utilise max(estimatedMinutes - loggedMinutes, 0) par défaut.
   remainingMinutes Int? // saisie manuelle par l'assignee/PO au fil du ticket
+  // Si false, la tâche est une "TODO" : elle ne compte PAS dans la somme
+  // d'estimation/RAF/atterrissage du parent. Par défaut true (comportement classique).
+  isEstimated     Boolean @default(true)
   // Les roll-ups (estimé total, loggé total, reste total, projection) sont
   // calculés via la vue SQL ticket_rollup
 

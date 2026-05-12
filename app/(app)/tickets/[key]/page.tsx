@@ -380,7 +380,14 @@ export default async function TicketPage({ params }: PageProps) {
             <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-3 inline-flex items-center gap-1">
               <Clock className="h-3 w-3" aria-hidden /> Logger du temps
             </h3>
-            <TimeLogForm ticketId={ticket.id} />
+            {ticket.isEstimated === false ? (
+              <p className="text-xs text-muted-foreground italic">
+                Cette tâche est une TODO (hors estimation). Le log de temps est
+                désactivé pour préserver la cohérence de l&apos;atterrissage parent.
+              </p>
+            ) : (
+              <TimeLogForm ticketId={ticket.id} />
+            )}
           </section>
         </aside>
       </div>

@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import rehypeSanitize from "rehype-sanitize";
-import { Calendar, Clock, User } from "lucide-react";
+import { Calendar, Clock, Sparkles, User } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, canEditTicket } from "@/lib/auth";
 import { getTicketRollup } from "@/lib/time-rollup";
@@ -44,7 +44,14 @@ export default async function TicketPage({ params }: PageProps) {
       assignee: { select: { id: true, name: true, email: true } },
       creator: { select: { name: true } },
       parent: { select: { key: true, title: true, type: true } },
-      project: { select: { key: true, name: true } },
+      project: {
+        select: {
+          key: true,
+          name: true,
+          parentProjectId: true,
+          parentProject: { select: { key: true, name: true } },
+        },
+      },
       children: {
         orderBy: [{ type: "asc" }, { priority: "asc" }, { createdAt: "desc" }],
         select: {
@@ -213,6 +220,48 @@ export default async function TicketPage({ params }: PageProps) {
           )}
         </div>
       </header>
+
+      {/* F05.3 : Bannière de provenance RUN pour les bugs escaladés */}
+      {ticket.type === "BUG" && ticket.project.parentProjectId && ticket.project.parentProject && (
+        <section className="border border-amber-500/30 bg-amber-500/5 rounded-lg p-4">
+          <div className="flex items-start gap-3">
+            <Sparkles className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" aria-hidden />
+            <div className="flex-1 min-w-0 space-y-1">
+              <p className="text-sm font-medium">
+                Bug créé depuis le RUN{" "}
+                <Link
+                  href={`/projects/${ticket.project.key}/board`}
+                  className="font-mono text-amber-700 dark:text-amber-300 hover:underline"
+                >
+                  {ticket.project.key}
+                </Link>{" "}
+                · {ticket.project.name}
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Projet principal :{" "}
+                <Link
+                  href={`/projects/${ticket.project.parentProject.key}/board`}
+                  className="hover:underline"
+                >
+                  {ticket.project.parentProject.name}
+                </Link>{" "}
+                · Créé le {formatDateTime(ticket.createdAt)}
+              </p>
+              {ticket.parent && (
+                <p className="text-xs">
+                  <Link
+                    href={`/tickets/${ticket.parent.key}`}
+                    className="inline-flex items-center gap-1 text-primary hover:underline font-medium"
+                    title="Consulter la Feature parente pour relire les spécifications"
+                  >
+                    Consulter la Feature : {ticket.parent.key} — {ticket.parent.title}
+                  </Link>
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">

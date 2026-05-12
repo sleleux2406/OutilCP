@@ -114,8 +114,37 @@ export function TicketCard({ ticket, currentUserId, isOverlay = false }: Props) 
         </div>
       )}
 
+      {/* Parent Feature : affichage enrichi pour les bugs escaladés */}
       {ticket.parentKey && (
-        <p className="text-[10px] text-muted-foreground mb-2 truncate">↖ {ticket.parentKey}</p>
+        <p
+          className="text-[10px] text-muted-foreground mb-2 truncate"
+          title={
+            ticket.parentTitle
+              ? `Feature parente : ${ticket.parentKey} — ${ticket.parentTitle}`
+              : undefined
+          }
+        >
+          {`\u2196 ${ticket.parentKey}`}
+          {ticket.parentTitle && (
+            <span className="ml-1">— {ticket.parentTitle}</span>
+          )}
+        </p>
+      )}
+
+      {/* F05.3 : badge de provenance RUN pour les bugs escaladés */}
+      {ticket.sourceRunKey && (
+        <div className="mb-2">
+          <Link
+            href={`/projects/${ticket.sourceRunKey}/board`}
+            onPointerDown={(e) => e.stopPropagation()}
+            onClick={(e) => e.stopPropagation()}
+            className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 dark:text-amber-300 transition-colors"
+            title="Ce bug a été créé depuis un RUN. Cliquez pour accéder au board du RUN."
+          >
+            <Sparkles className="w-3 h-3" aria-hidden />
+            Issu de {ticket.sourceRunKey}
+          </Link>
+        </div>
       )}
 
       {/* Date de fin prévue */}

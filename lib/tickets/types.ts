@@ -18,6 +18,13 @@ export interface KanbanTicket {
   endDate: string | null;
   assignee: { id: string; name: string } | null;
   parentKey: string | null;
+  /** Titre du parent (utile pour afficher sur la carte bugs escaladés). */
+  parentTitle?: string | null;
+  /**
+   * Clé du sous-projet RUN d'origine si ce ticket est un bug escaladé
+   * depuis un RUN vers le board parent. Null sinon.
+   */
+  sourceRunKey?: string | null;
   /** True si c'est une Feature sans Task/Bug enfant → workflow session d'estimation. */
   needsEstimation?: boolean;
   /** False si la tâche est une TODO non chiffrée (ne compte pas dans l'agrégation). */

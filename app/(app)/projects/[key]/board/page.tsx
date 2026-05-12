@@ -42,12 +42,34 @@ export default async function BoardPage({ params }: PageProps) {
   //   - ADMIN / PRODUCT_OWNER / TESTER : voient Epics + Features (niveau pilotage)
   const visibleTypes = KANBAN_VISIBLE_TYPES_BY_ROLE[session.role];
 
+  // F05.3 : Escalade des bugs RUN → board parent.
+  // Si on est sur un projet racine et que le rôle voit les Bugs, on remonte
+  // aussi les bugs des sous-projets RUN enfants (visibilité pour les DEV).
+  const isRootProject = project.parentProjectId === null;
+  const includesBugs = visibleTypes.includes("BUG");
+  const whereClause =
+    isRootProject && includesBugs
+      ? {
+          OR: [
+            {
+              projectId: project.id,
+              type: { in: visibleTypes },
+            },
+            {
+              // Bugs des RUNs enfants, uniquement si le rôle voit les Bugs
+              project: { parentProjectId: project.id },
+              type: "BUG" as const,
+            },
+          ],
+        }
+      : {
+          projectId: project.id,
+          type: { in: visibleTypes },
+        };
+
   const [rawTickets, rollups, testExecStats] = await Promise.all([
     prisma.ticket.findMany({
-      where: {
-        projectId: project.id,
-        type: { in: visibleTypes },
-      },
+      where: whereClause,
       select: {
         id: true,
         key: true,
@@ -61,8 +83,12 @@ export default async function BoardPage({ params }: PageProps) {
         remainingMinutes: true,
         endDate: true,
         isEstimated: true,
+        projectId: true,
         assignee: { select: { id: true, name: true } },
-        parent: { select: { key: true } },
+        parent: { select: { key: true, title: true } },
+        // F05.3 : pour un bug qui vient d'un RUN enfant, on récupère la clé
+        // du RUN pour l'afficher sur la carte
+        project: { select: { key: true, parentProjectId: true } },
         // Pour déduire l'état "à estimer" d'une Feature côté UI
         children: { select: { type: true } },
       },
@@ -138,6 +164,13 @@ export default async function BoardPage({ params }: PageProps) {
       endDate: t.endDate ? t.endDate.toISOString() : null,
       assignee: t.assignee,
       parentKey: t.parent?.key ?? null,
+      parentTitle: t.parent?.title ?? null,
+      // F05.3 : si le bug appartient à un sous-projet RUN (projet avec parentProjectId),
+      // on expose la clé du RUN pour l'afficher sur la carte du board parent.
+      sourceRunKey:
+        t.project.parentProjectId && t.projectId !== project.id
+          ? t.project.key
+          : null,
       needsEstimation: isFeatureNeedingEstimation(
         t.type,
         t.children.map((c) => c.type),

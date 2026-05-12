@@ -45,6 +45,16 @@ export interface EstimationEditability {
 export function computeEstimationEditability(
   ctx: EstimationContext
 ): EstimationEditability {
+  // Règle 0 : un Epic ne gère jamais d'estimation ni de RAF
+  // (il sert uniquement à trier la spec fonctionnelle).
+  if (ctx.type === "EPIC") {
+    return {
+      canEditEstimated: false,
+      canEditRemaining: false,
+      lockReason: "HAS_CHILDREN",
+    };
+  }
+
   // Règle 1 : DONE → tout verrouillé
   if (ctx.status === "DONE") {
     return {

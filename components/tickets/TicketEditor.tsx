@@ -254,7 +254,7 @@ export function TicketEditor({ ticket, canEdit }: Props) {
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div className={ticket.type === "EPIC" ? "" : "grid grid-cols-2 gap-3"}>
               <div>
                 <Label htmlFor="edit-priority">Priorité</Label>
                 <Select
@@ -269,68 +269,72 @@ export function TicketEditor({ ticket, canEdit }: Props) {
                   ))}
                 </Select>
               </div>
+              {ticket.type !== "EPIC" && (
+                <div>
+                  <Label htmlFor="edit-estimated">
+                    Estimé initial (jours)
+                    {!editability.canEditEstimated && (
+                      <span className="ml-1 text-[10px] text-muted-foreground font-normal">
+                        (verrouillé)
+                      </span>
+                    )}
+                  </Label>
+                  <Input
+                    id="edit-estimated"
+                    type="number"
+                    min={0}
+                    max={30}
+                    step={0.5}
+                    value={estimatedDays}
+                    onChange={(e) => setEstimatedDays(e.target.value)}
+                    placeholder="0"
+                    disabled={!editability.canEditEstimated}
+                  />
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    1 jour = 8 heures
+                    {editability.lockReason === "COLD_AUTO_SYNC" &&
+                      " · Le reste à faire se synchronisera automatiquement."}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {ticket.type !== "EPIC" && (
               <div>
-                <Label htmlFor="edit-estimated">
-                  Estimé initial (jours)
-                  {!editability.canEditEstimated && (
+                <Label htmlFor="edit-remaining">
+                  Reste à faire (jours)
+                  {!editability.canEditRemaining && (
                     <span className="ml-1 text-[10px] text-muted-foreground font-normal">
                       (verrouillé)
                     </span>
                   )}
                 </Label>
                 <Input
-                  id="edit-estimated"
+                  id="edit-remaining"
                   type="number"
                   min={0}
                   max={30}
                   step={0.5}
-                  value={estimatedDays}
-                  onChange={(e) => setEstimatedDays(e.target.value)}
-                  placeholder="0"
-                  disabled={!editability.canEditEstimated}
+                  value={remainingDays}
+                  onChange={(e) => setRemainingDays(e.target.value)}
+                  placeholder={
+                    editability.canEditRemaining ? "Ré-estimez le temps restant" : ""
+                  }
+                  disabled={!editability.canEditRemaining}
                 />
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  1 jour = 8 heures
-                  {editability.lockReason === "COLD_AUTO_SYNC" &&
-                    " · Le reste à faire se synchronisera automatiquement."}
+                  {editability.lockReason === "HOT_ESTIMATED_FROZEN"
+                    ? "Du temps a été loggé : ajustez ce champ au fil du ticket."
+                    : editability.lockReason === "COLD_AUTO_SYNC"
+                    ? "Calculé automatiquement à partir de l'estimation initiale."
+                    : editability.lockReason === "DONE"
+                    ? "Ticket terminé : plus rien à faire."
+                    : editability.lockReason === "HAS_CHILDREN"
+                    ? "Valeur agrégée depuis les enfants."
+                    : "Ré-estimez le temps restant au fur et à mesure."}
                 </p>
               </div>
-            </div>
-
-            <div>
-              <Label htmlFor="edit-remaining">
-                Reste à faire (jours)
-                {!editability.canEditRemaining && (
-                  <span className="ml-1 text-[10px] text-muted-foreground font-normal">
-                    (verrouillé)
-                  </span>
-                )}
-              </Label>
-              <Input
-                id="edit-remaining"
-                type="number"
-                min={0}
-                max={30}
-                step={0.5}
-                value={remainingDays}
-                onChange={(e) => setRemainingDays(e.target.value)}
-                placeholder={
-                  editability.canEditRemaining ? "Ré-estimez le temps restant" : ""
-                }
-                disabled={!editability.canEditRemaining}
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">
-                {editability.lockReason === "HOT_ESTIMATED_FROZEN"
-                  ? "Du temps a été loggé : ajustez ce champ au fil du ticket."
-                  : editability.lockReason === "COLD_AUTO_SYNC"
-                  ? "Calculé automatiquement à partir de l'estimation initiale."
-                  : editability.lockReason === "DONE"
-                  ? "Ticket terminé : plus rien à faire."
-                  : editability.lockReason === "HAS_CHILDREN"
-                  ? "Valeur agrégée depuis les enfants."
-                  : "Ré-estimez le temps restant au fur et à mesure."}
-              </p>
-            </div>
+            )}
 
             <div>
               <Label htmlFor="edit-start-date">

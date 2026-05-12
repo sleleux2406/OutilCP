@@ -43,6 +43,12 @@ export async function logTimeAction(input: LogTimeInput): Promise<LogTimeResult>
   });
   if (!ticket) return { ok: false, error: "NOT_FOUND" };
 
+  // Règle métier : les Epics ne gèrent pas de temps (ils servent seulement
+  // à trier la spec fonctionnelle, pas à piloter un effort)
+  if (ticket.type === "EPIC") {
+    return { ok: false, error: "FORBIDDEN" };
+  }
+
   // Règle métier : pas de log sur les TODO (tâches non chiffrées)
   if (!ticket.isEstimated) {
     return { ok: false, error: "TODO_TASK" };

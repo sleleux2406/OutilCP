@@ -284,10 +284,14 @@ export default async function TicketPage({ params }: PageProps) {
             </div>
           </section>
 
-          <section className="border rounded-lg p-4 bg-card">
-            <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-3">
-              Temps (avec descendants)
-            </h3>
+          {/* Les Epics ne gèrent ni temps ni dépassement : ils servent
+              uniquement à trier la spec fonctionnelle. */}
+          {ticket.type !== "EPIC" && (
+            <>
+              <section className="border rounded-lg p-4 bg-card">
+                <h3 className="text-xs font-semibold uppercase text-muted-foreground mb-3">
+                  Temps (avec descendants)
+                </h3>
             <div className="space-y-2 text-sm">
               <div className="flex justify-between tabular-nums">
                 <span className="text-muted-foreground">Estimé initial</span>
@@ -389,6 +393,8 @@ export default async function TicketPage({ params }: PageProps) {
               <TimeLogForm ticketId={ticket.id} />
             )}
           </section>
+            </>
+          )}
         </aside>
       </div>
     </main>

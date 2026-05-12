@@ -129,8 +129,9 @@ export function CreateTicketDialog({
         description: description.trim() || undefined,
         parentId: parentId ?? null,
         priority,
-        // Si TODO : on force l'estimation à 0 pour cohérence (la tâche ne compte pas)
-        estimatedMinutes: isEstimated ? cappedMinutes : 0,
+        // Si TODO : on force l'estimation à 0 pour cohérence.
+        // Si Epic : on force aussi 0 (les Epics ne gèrent pas de temps).
+        estimatedMinutes: type === "EPIC" ? 0 : isEstimated ? cappedMinutes : 0,
         assigneeId: assigneeId || null,
         isEstimated,
       });
@@ -236,8 +237,8 @@ export function CreateTicketDialog({
             />
           </div>
 
-          {/* Priorité + Estimation */}
-          <div className="grid grid-cols-2 gap-3">
+          {/* Priorité + Estimation (l'estimation ne s'applique pas aux Epics) */}
+          <div className={type === "EPIC" ? "" : "grid grid-cols-2 gap-3"}>
             <div>
               <Label htmlFor="ticket-priority">Priorité</Label>
               <Select
@@ -252,28 +253,30 @@ export function CreateTicketDialog({
                 ))}
               </Select>
             </div>
-            <div>
-              <Label htmlFor="ticket-estimated">
-                Estimé (jours)
-                {!isEstimated && (
-                  <span className="ml-1 text-[10px] text-muted-foreground font-normal">
-                    (ignoré pour une TODO)
-                  </span>
-                )}
-              </Label>
-              <Input
-                id="ticket-estimated"
-                type="number"
-                min={0}
-                max={30}
-                step={0.5}
-                value={estimatedDays}
-                onChange={(e) => setEstimatedDays(e.target.value)}
-                placeholder="0"
-                disabled={!isEstimated}
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">1 jour = 8 heures</p>
-            </div>
+            {type !== "EPIC" && (
+              <div>
+                <Label htmlFor="ticket-estimated">
+                  Estimé (jours)
+                  {!isEstimated && (
+                    <span className="ml-1 text-[10px] text-muted-foreground font-normal">
+                      (ignoré pour une TODO)
+                    </span>
+                  )}
+                </Label>
+                <Input
+                  id="ticket-estimated"
+                  type="number"
+                  min={0}
+                  max={30}
+                  step={0.5}
+                  value={estimatedDays}
+                  onChange={(e) => setEstimatedDays(e.target.value)}
+                  placeholder="0"
+                  disabled={!isEstimated}
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">1 jour = 8 heures</p>
+              </div>
+            )}
           </div>
 
           {/* Switch Chiffrée / TODO — uniquement pertinent pour Task */}

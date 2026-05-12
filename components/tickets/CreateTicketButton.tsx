@@ -6,7 +6,7 @@ import type { Role } from "@prisma/client";
 import { Button } from "@/components/ui/button";
 import { CreateTicketDialog } from "./CreateTicketDialog";
 
-type CreatableType = "EPIC" | "FEATURE" | "USER_STORY";
+type CreatableType = "EPIC" | "FEATURE" | "USER_STORY" | "TASK";
 
 interface Props {
   projectId: string;
@@ -17,11 +17,17 @@ interface Props {
   size?: "default" | "sm" | "lg";
 }
 
-// Alignement strict avec TYPE_PERMISSIONS côté Server Action
+/**
+ * Alignement strict avec TYPE_PERMISSIONS côté Server Action (app/actions/tickets.ts).
+ *
+ * - ADMIN / PRODUCT_OWNER : création complète (Epic, Feature, US, Task)
+ * - DEVELOPER : User Story et Task (notamment pour créer des TODO librement)
+ * - TESTER : aucun type via ce bouton (ils créent des bugs via le Test Runner)
+ */
 const ROLE_TO_TYPES: Record<Role, CreatableType[]> = {
-  ADMIN: ["EPIC", "FEATURE", "USER_STORY"],
-  PRODUCT_OWNER: ["EPIC", "FEATURE", "USER_STORY"],
-  DEVELOPER: ["USER_STORY"],
+  ADMIN: ["EPIC", "FEATURE", "USER_STORY", "TASK"],
+  PRODUCT_OWNER: ["EPIC", "FEATURE", "USER_STORY", "TASK"],
+  DEVELOPER: ["USER_STORY", "TASK"],
   TESTER: [],
 };
 

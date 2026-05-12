@@ -193,7 +193,11 @@ export function CreateTicketDialog({
               <Label>
                 Parent *{" "}
                 <span className="text-xs text-muted-foreground font-normal">
-                  ({type === "FEATURE" ? "Epic" : "Feature"})
+                  ({type === "FEATURE"
+                    ? "Epic"
+                    : type === "USER_STORY"
+                    ? "Feature"
+                    : "Feature ou User Story"})
                 </span>
               </Label>
               <TicketParentPicker

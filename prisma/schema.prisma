@@ -338,3 +338,45 @@ model UserLeave {
   @@index([userId, startDate])
   @@index([userId, endDate])
 }
+
+// ─────────────────────────────────────────────────────────────
+// Capacity Planning : placement automatique des tickets P1
+// ─────────────────────────────────────────────────────────────
+
+// Plan de capacité courant pour un projet. Un seul plan actif par projet
+// (écrasé à chaque clic "Placement automatique").
+model CapacityPlan {
+  id        String   @id @default(cuid())
+  projectId String   @unique
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  // Premier lundi planifié (semaine 1 du plan)
+  startWeek DateTime @db.Date
+  // Dernier jour planifié (date de fin calculée)
+  endDate   DateTime? @db.Date
+  // Métadonnées de génération
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items CapacityPlanItem[]
+}
+
+// Allocation d'un ticket sur une semaine donnée du plan.
+// Un même ticket peut être réparti sur plusieurs semaines (allocations multiples).
+model CapacityPlanItem {
+  id            String   @id @default(cuid())
+  planId        String
+  plan          CapacityPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  ticketId      String
+  // Le lundi de la semaine où une partie du ticket est planifiée
+  weekStart     DateTime @db.Date
+  // Nombre de jours alloués sur cette semaine pour ce ticket (en minutes pour précision)
+  allocatedMinutes Int
+  // Position dans l'ordre de placement (P1 par ordre de création)
+  position      Int
+  createdAt     DateTime @default(now())
+
+  @@index([planId, weekStart])
+  @@index([ticketId])
+}
+

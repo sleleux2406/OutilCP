@@ -159,8 +159,51 @@ export function placeP1Tickets(
     return sum + (t.estimatedMinutes - placedForTicket);
   }, 0);
 
-  const projectedEndDate =
-    lastWeekUsed >= 0 ? weeks[lastWeekUsed].weekEnd : null;
+  // Calcul de la date de fin projetée (au jour ouvré près) :
+  //   - On part du lundi de la dernière semaine utilisée
+  //   - On calcule combien de jours-homme sont alloués cette semaine-là
+  //   - On divise par l'ETP total pour obtenir le nombre de jours calendaires nécessaires
+  //   - On avance ce nombre de jours OUVRÉS depuis le lundi (saute samedi/dimanche)
+  //   - Si la semaine est entièrement remplie, fin = vendredi (ou le dernier jour ouvré non férié)
+  let projectedEndDate: Date | null = null;
+  if (lastWeekUsed >= 0) {
+    const lastWeek = weeks[lastWeekUsed];
+    const allocatedMinutesInLastWeek = allocations
+      .filter(
+        (a) => a.weekStart.getTime() === lastWeek.weekStart.getTime()
+      )
+      .reduce((s, a) => s + a.allocatedMinutes, 0);
+
+    const daysAllocatedInLastWeek = allocatedMinutesInLastWeek / MINUTES_PER_DAY;
+    const etpForLastWeek = lastWeek.totalEtp;
+
+    // Nombre de jours calendaires (ouvrés) nécessaires pour absorber
+    // la charge de la dernière semaine en tenant compte du parallélisme
+    let calendarBusinessDaysNeeded: number;
+    if (etpForLastWeek <= 0) {
+      // Pas d'ETP cette semaine (toute l'équipe en congé/férié) :
+      // on ne peut pas finir, on retombe sur le vendredi
+      calendarBusinessDaysNeeded = 5;
+    } else {
+      calendarBusinessDaysNeeded = Math.ceil(daysAllocatedInLastWeek / etpForLastWeek);
+      // Cap à 5 jours ouvrés (la semaine n'a pas plus)
+      calendarBusinessDaysNeeded = Math.min(calendarBusinessDaysNeeded, 5);
+      // Au minimum 1 jour si on a placé quelque chose
+      calendarBusinessDaysNeeded = Math.max(calendarBusinessDaysNeeded, 1);
+    }
+
+    // Avance depuis le lundi de N-1 jours ouvrés (lundi inclus = j1)
+    projectedEndDate = new Date(lastWeek.weekStart);
+    let stepsToAdvance = calendarBusinessDaysNeeded - 1;
+    while (stepsToAdvance > 0) {
+      projectedEndDate.setUTCDate(projectedEndDate.getUTCDate() + 1);
+      const dow = projectedEndDate.getUTCDay();
+      // Saute samedi (6) et dimanche (0)
+      if (dow !== 0 && dow !== 6) {
+        stepsToAdvance -= 1;
+      }
+    }
+  }
 
   return {
     allocations,

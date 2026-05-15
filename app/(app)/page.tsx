@@ -1,14 +1,17 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { ArrowRight, FolderKanban, Plus } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { ArrowRight, FolderKanban } from "lucide-react";
+import { requireAuth } from "@/lib/auth";
+import { CreateProjectButton } from "@/components/projects/CreateProjectButton";
 
 export const metadata = {
   title: "Projets",
 };
 
 export default async function HomePage() {
+  const session = await requireAuth();
   const projects = await prisma.project.findMany({
+    where: { parentProjectId: null }, // projets racine seulement (les RUN sont accessibles depuis leur parent)
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -28,10 +31,7 @@ export default async function HomePage() {
             Choisissez un projet pour accéder au Kanban et au Test Runner.
           </p>
         </div>
-        <Button disabled title="Création de projet — prochainement">
-          <Plus className="h-4 w-4" />
-          Nouveau projet
-        </Button>
+        <CreateProjectButton userRole={session.role} />
       </div>
 
       {projects.length === 0 ? (

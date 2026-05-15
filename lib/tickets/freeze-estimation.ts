@@ -51,10 +51,15 @@ export async function freezeFeatureEstimationIfNeeded(
 
 /**
  * Vérifie si la Feature a déjà du log dans son sous-arbre.
- * Si c'est la PREMIÈRE fois qu'un log arrive, on capture la somme hybride
- * actuelle (estim propre + somme des Tasks/Bugs chiffrés enfants) dans
- * estimatedMinutes propre ET on horodate frozenAt. Ensuite l'estim devient
- * figée et la vue SQL peut distinguer les Tasks ajoutées après le gel.
+ * Si c'est la PREMIÈRE fois qu'un log arrive, on capture :
+ *   - estimatedMinutes propre = snapshot (somme hybride)
+ *   - frozenAt = horodatage du gel
+ *   - frozenSelfMinutes = "fraction propre" de la Feature au moment du gel
+ *     = currentEstimatedMinutes (avant snapshot) — c'est-à-dire l'estim
+ *     propre de la Feature qui n'est pas couverte par les Tasks chiffrées
+ *
+ * Cette fraction propre est ensuite utilisée par la vue SQL pour reconstituer
+ * le RAF correctement même quand le RAF des Tasks est ajusté manuellement.
  */
 async function freezeSingleFeature(
   tx: Prisma.TransactionClient,
@@ -83,11 +88,17 @@ async function freezeSingleFeature(
   const childrenEstim = agg._sum.estimatedMinutes ?? 0;
   const snapshot = currentEstimatedMinutes + childrenEstim;
 
+  // frozenSelfMinutes = la fraction de l'estim propre de la Feature qui
+  // n'est PAS couverte par les Tasks chiffrées au moment du gel.
+  // C'est exactement la valeur d'estimatedMinutes AVANT le snapshot.
+  const frozenSelfMinutes = currentEstimatedMinutes;
+
   await tx.ticket.update({
     where: { id: featureId },
     data: {
       estimatedMinutes: snapshot,
       frozenAt: new Date(),
+      frozenSelfMinutes,
     },
   });
 }

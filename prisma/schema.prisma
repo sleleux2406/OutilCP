@@ -146,6 +146,13 @@ model Ticket {
   // Null tant qu'aucun gel ne s'est produit. Permet de distinguer les Tasks
   // enfants créées avant vs après le gel pour le calcul du RAF.
   frozenAt DateTime?
+  // Au moment du gel d'une Feature, on capture la "fraction propre" :
+  // snapshot - somme(estim Tasks chiffrées au moment du gel).
+  // C'est la part de l'estimation initiale qui n'est PAS déjà couverte par
+  // des Tasks. Permet de calculer correctement le RAF Feature même quand
+  // le RAF des Tasks est ajusté manuellement.
+  // Null sauf pour les Features gelées.
+  frozenSelfMinutes Int?
   // Les roll-ups (estimé total, loggé total, reste total, projection) sont
   // calculés via la vue SQL ticket_rollup
 

@@ -45,7 +45,7 @@ export function CreateBugDialog({ projectId, open, onOpenChange, defaultParentId
     setTitle("");
     setDescription("");
     setPriority(3);
-    setEstimatedHours("");
+    setEstimatedDays("");
   };
 
   const submit = (e: React.FormEvent) => {

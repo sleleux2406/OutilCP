@@ -1,9 +1,10 @@
 /**
- * Configuration Next.js compatible dev local + GitHub Codespaces.
+ * Configuration Next.js compatible dev local + GitHub Codespaces + Vercel production.
  *
- * En Codespace, l'URL change à chaque redémarrage. Plutôt que de la
- * hardcoder, on lit CODESPACE_NAME (variable env fournie par Codespaces)
- * et on construit l'origine autorisée dynamiquement.
+ * - En local : localhost:3000
+ * - En Codespace : ${CODESPACE_NAME}-3000.app.github.dev (variable injectee par Codespaces)
+ * - En Vercel : ${VERCEL_URL} (variable injectee par Vercel a chaque deploy)
+ *               + le domaine VERCEL_PROJECT_PRODUCTION_URL pour l'URL stable
  */
 
 const S3_HOSTS = "https://*.r2.cloudflarestorage.com https://*.s3.amazonaws.com";
@@ -23,8 +24,9 @@ const CSP_PARTS = [
 
 const CSP = CSP_PARTS.join("; ");
 
-// Origines autorisées pour les Server Actions.
-// En Codespace, CODESPACE_NAME est défini → on ajoute le hostname Codespace.
+// Origines autorisees pour les Server Actions.
+// En Codespace : CODESPACE_NAME -> hostname Codespace.
+// En Vercel : VERCEL_URL (URL de la deployment) + VERCEL_PROJECT_PRODUCTION_URL (URL stable).
 const codespaceOrigins = process.env.CODESPACE_NAME
   ? [
       `${process.env.CODESPACE_NAME}-3000.app.github.dev`,
@@ -32,10 +34,19 @@ const codespaceOrigins = process.env.CODESPACE_NAME
     ]
   : [];
 
+const vercelOrigins = [];
+if (process.env.VERCEL_URL) {
+  vercelOrigins.push(process.env.VERCEL_URL);
+}
+if (process.env.VERCEL_PROJECT_PRODUCTION_URL) {
+  vercelOrigins.push(process.env.VERCEL_PROJECT_PRODUCTION_URL);
+}
+
 const allowedOrigins = [
   "localhost:3000",
   "127.0.0.1:3000",
   ...codespaceOrigins,
+  ...vercelOrigins,
 ];
 
 /** @type {import('next').NextConfig} */

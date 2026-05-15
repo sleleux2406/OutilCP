@@ -349,12 +349,16 @@ model CapacityPlan {
   id        String   @id @default(cuid())
   projectId String   @unique
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  // Premier lundi planifié (semaine 1 du plan)
-  startWeek DateTime @db.Date
-  // Dernier jour planifié (date de fin calculée)
-  endDate   DateTime? @db.Date
-  // Métadonnées de génération
-  createdBy String
+  // Date de génération du plan
+  generatedAt   DateTime @default(now())
+  // Utilisateur qui a déclenché la génération
+  generatedById String
+  // Date de fin projetée (= weekEnd de la dernière semaine utilisée)
+  projectedEndDate DateTime? @db.Date
+  // Minutes P1 qui n'ont pas pu être placées sur l'horizon
+  leftoverMinutes  Int      @default(0)
+  // Nombre de semaines projetées lors du calcul
+  weeksCount       Int      @default(12)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

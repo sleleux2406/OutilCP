@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, KanbanSquare } from "lucide-react";
+import { ChevronLeft, KanbanSquare, CalendarDays } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireRole } from "@/lib/auth";
 import { getProjectRollups } from "@/lib/time-rollup";
@@ -109,6 +109,13 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
         >
           <KanbanSquare className="h-4 w-4" />
           Vue Kanban
+        </Link>
+        <Link
+          href={`/projects/${project.key}/capacity`}
+          className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border hover:bg-accent"
+        >
+          <CalendarDays className="h-4 w-4" />
+          Capacité
         </Link>
       </header>
 

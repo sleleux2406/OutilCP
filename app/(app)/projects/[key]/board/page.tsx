@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, LayoutDashboard } from "lucide-react";
+import { ChevronLeft, LayoutDashboard, CalendarDays } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { getProjectRollups } from "@/lib/time-rollup";
@@ -244,6 +244,15 @@ export default async function BoardPage({ params }: PageProps) {
             >
               <LayoutDashboard className="h-4 w-4" />
               Vue Pilotage
+            </Link>
+          )}
+          {canPilot && (
+            <Link
+              href={`/projects/${project.key}/capacity`}
+              className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border hover:bg-accent"
+            >
+              <CalendarDays className="h-4 w-4" />
+              Capacité
             </Link>
           )}
         </div>

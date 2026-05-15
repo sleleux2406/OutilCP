@@ -83,9 +83,9 @@ export async function getCapacityViewAction(
   });
   if (!project) return { ok: false, error: "NOT_FOUND" };
 
-  // 1. Développeurs (rôle DEVELOPER, actifs)
+  // 1. Développeurs (rôle DEVELOPER)
   const developers = await prisma.user.findMany({
-    where: { role: "DEVELOPER", active: true },
+    where: { role: "DEVELOPER" },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
@@ -282,7 +282,7 @@ export async function autoPlaceP1Action(
 
   // Charge devs + leaves + holidays
   const developers = await prisma.user.findMany({
-    where: { role: "DEVELOPER", active: true },
+    where: { role: "DEVELOPER" },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });

@@ -230,7 +230,7 @@ export function CreateTicketDialog({
                     ? "Epic"
                     : type === "USER_STORY"
                     ? "Feature"
-                    : "Feature ou User Story"})
+                    : "Feature, User Story ou Bug"})
                 </span>
               </Label>
               <TicketParentPicker

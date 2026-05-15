@@ -110,7 +110,8 @@ export function getLockReasonLabel(reason: EstimationEditability["lockReason"]):
  * Helper : détermine si les enfants d'un ticket donné "comptent" pour
  * l'agrégation.
  *
- * Pour une FEATURE, seuls les enfants Task/Bug comptent (pas les US legacy).
+ * Pour une FEATURE ou un BUG, seuls les enfants Task/Bug comptent.
+ * (Les US legacy ne comptent pas pour Feature, et un Bug n'aura jamais d'US enfant.)
  * Pour les autres types, tout enfant compte.
  */
 export function hasAggregatingChildren(
@@ -118,7 +119,7 @@ export function hasAggregatingChildren(
   childrenTypes: TicketType[]
 ): boolean {
   if (childrenTypes.length === 0) return false;
-  if (parentType === "FEATURE") {
+  if (parentType === "FEATURE" || parentType === "BUG") {
     return childrenTypes.some((t) => t === "TASK" || t === "BUG");
   }
   return true;

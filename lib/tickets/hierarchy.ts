@@ -10,11 +10,19 @@ import { TicketType } from "@prisma/client";
  *           ├── USER_STORY       (legacy, conservé pour compat)
  *           │     ├── TASK
  *           │     └── BUG
+ *           │           └── TASK  (lot C0 : decomposition d'un bug en sous-taches)
  *           └── BUG               (bug rattaché directement à la feature)
+ *                 └── TASK         (lot C0 : decomposition d'un bug en sous-taches)
  *
  * Depuis le workflow "session d'estimation", on privilégie FEATURE → TASK
  * (la session génère directement des Tasks enfants d'une Feature).
  * Les User Stories restent valides pour la compatibilité.
+ *
+ * Lot C0 (mode simple) : on autorise TASK comme enfant d'un BUG, mais le BUG
+ * conserve son comportement de feuille (estim propre, log direct, etc.).
+ * Le rollup additionne quand meme les Tasks enfants au Bug, ce qui peut creer
+ * un drift d'estim si le PO ne maintient pas l'estim Bug a jour. Le Lot C1
+ * passera en mode "container adaptatif" pour resoudre ce point.
  */
 export const ALLOWED_CHILDREN: Record<TicketType, TicketType[]> = {
   EPIC: ["FEATURE"],
@@ -22,7 +30,8 @@ export const ALLOWED_CHILDREN: Record<TicketType, TicketType[]> = {
   FEATURE: ["TASK", "USER_STORY", "BUG"],
   USER_STORY: ["TASK", "BUG"],
   TASK: [],
-  BUG: [],
+  // Lot C0 : un Bug peut etre decompose en Tasks correctives.
+  BUG: ["TASK"],
 };
 
 /** Types de parents valides pour un type d'enfant donné (inverse du map ci-dessus). */
@@ -30,9 +39,8 @@ export const ALLOWED_PARENTS: Record<TicketType, TicketType[]> = {
   EPIC: [],
   FEATURE: ["EPIC"],
   USER_STORY: ["FEATURE"],
-  // Une Task peut être enfant d'une Feature (session d'estimation)
-  // ou d'une User Story (mode legacy).
-  TASK: ["FEATURE", "USER_STORY"],
+  // Une Task peut être enfant d'une Feature, d'une User Story ou d'un Bug.
+  TASK: ["FEATURE", "USER_STORY", "BUG"],
   BUG: ["FEATURE", "USER_STORY"],
 };
 

@@ -110,6 +110,9 @@ model Project {
 
   tickets Ticket[]
 
+  // Plan de capacité courant pour ce projet (1 plan max, écrasé à chaque clic)
+  capacityPlan CapacityPlan?
+
   @@index([key])
   @@index([parentProjectId])
 }
@@ -178,6 +181,8 @@ model Ticket {
   testRuns        TestRun[]
   timeEntries     TimeEntry[]
   attachments     Attachment[]
+  // Allocations de capacité (placement P1 sur le calendrier)
+  capacityPlanItems CapacityPlanItem[]
   // Exécution de test qui a généré ce bug (si type = BUG issu d'un KO)
   sourceExecution TestExecution? @relation("BugFromKo")
 
@@ -372,6 +377,7 @@ model CapacityPlanItem {
   planId        String
   plan          CapacityPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
   ticketId      String
+  ticket        Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
   // Le lundi de la semaine où une partie du ticket est planifiée
   weekStart     DateTime @db.Date
   // Nombre de jours alloués sur cette semaine pour ce ticket (en minutes pour précision)

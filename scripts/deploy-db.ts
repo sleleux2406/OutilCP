@@ -28,6 +28,12 @@ const MIGRATIONS_DIR = join(process.cwd(), "prisma", "migrations");
 /**
  * Decoupe naive d'un script SQL en statements individuels, en preservant
  * les blocs DO $$ ... $$ qui peuvent contenir des ; internes.
+ *
+ * Strategie :
+ *   1. Pour chaque ligne, on retire d'abord la partie commentaire SQL (--)
+ *   2. On suit l'etat 'inDollarBlock' pour ne pas couper a l'interieur d'un DO $$
+ *   3. On regarde si la ligne (sans son commentaire) se termine par ; pour
+ *      finir un statement
  */
 function splitStatements(sql: string): string[] {
   const statements: string[] = [];
@@ -35,12 +41,28 @@ function splitStatements(sql: string): string[] {
   let inDollarBlock = false;
   let dollarTag = "";
 
-  // Strip comments lines that start with --
   const lines = sql.split("\n");
 
   for (const line of lines) {
+    // Retire les commentaires SQL en fin de ligne (avant le test endsWith(';'))
+    // sauf si on est dans un bloc DO $$ ... $$ ou string litterale
+    let codeLine = line;
+    if (!inDollarBlock) {
+      const commentIdx = codeLine.indexOf("--");
+      if (commentIdx >= 0) {
+        // Mais attention : "--" peut etre dans un string '...' (rare mais possible)
+        // Heuristique : on regarde si le -- est apres un nombre pair de '
+        const beforeComment = codeLine.slice(0, commentIdx);
+        const quoteCount = (beforeComment.match(/'/g) || []).length;
+        if (quoteCount % 2 === 0) {
+          // Pas dans une string : on supprime le commentaire
+          codeLine = beforeComment;
+        }
+      }
+    }
+
     // Detection de debut/fin de bloc DO $$ ... $$ ou $tag$ ... $tag$
-    const dollarMatch = line.match(/\$([a-zA-Z_]*)\$/g);
+    const dollarMatch = codeLine.match(/\$([a-zA-Z_]*)\$/g);
     if (dollarMatch) {
       for (const m of dollarMatch) {
         if (!inDollarBlock) {
@@ -53,11 +75,11 @@ function splitStatements(sql: string): string[] {
       }
     }
 
-    current += line + "\n";
+    current += codeLine + "\n";
 
-    if (!inDollarBlock && line.trim().endsWith(";")) {
+    if (!inDollarBlock && codeLine.trim().endsWith(";")) {
       const stmt = current.trim();
-      if (stmt.length > 0 && !stmt.startsWith("--")) {
+      if (stmt.length > 0) {
         statements.push(stmt);
       }
       current = "";
@@ -69,14 +91,14 @@ function splitStatements(sql: string): string[] {
     statements.push(current.trim());
   }
 
-  // Filtre les commentaires purs
+  // Filtre les statements vides ou purement commentaires
   return statements.filter((s) => {
-    const noComments = s
+    const cleaned = s
       .split("\n")
-      .filter((l) => !l.trim().startsWith("--") && l.trim().length > 0)
+      .filter((l) => l.trim().length > 0)
       .join("\n")
       .trim();
-    return noComments.length > 0;
+    return cleaned.length > 0;
   });
 }
 

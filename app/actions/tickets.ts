@@ -2,7 +2,7 @@
 
 import { z } from "zod";
 import { revalidatePath } from "next/cache";
-import { TicketStatus, TicketType } from "@prisma/client";
+import { TicketStatus, TicketType, type Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { requireAuth, canEditTicket } from "@/lib/auth";
 import { rateLimit } from "@/lib/rate-limit";
@@ -548,7 +548,7 @@ export async function updateTicketAction(
         action: "TICKET.UPDATED",
         entityType: "Ticket",
         entityId: data.ticketId,
-        metadata: { changed },
+        metadata: { changed } as Prisma.InputJsonValue,
       },
     });
   });

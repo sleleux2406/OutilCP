@@ -80,6 +80,7 @@ export function CreateBugDialog({ projectId, open, onOpenChange, defaultParentId
           PARENT_NOT_FOUND: "Parent introuvable",
           INVALID_PARENT: "Ce ticket ne peut pas accueillir un bug",
           CROSS_PROJECT: "Le parent n'appartient pas à ce projet",
+          RATE_LIMITED: "Trop de creations rapides, reessayez dans quelques minutes",
         }[res.error];
         toast.error(msg);
         return;

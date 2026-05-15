@@ -36,6 +36,7 @@ function formatDateShort(dateIso: string | Date): string {
   return d.toLocaleDateString("fr-FR", {
     day: "2-digit",
     month: "short",
+    timeZone: "UTC",
   });
 }
 
@@ -155,6 +156,7 @@ export function CapacityTimeline({
                 month: "short",
                 hour: "2-digit",
                 minute: "2-digit",
+                timeZone: "Europe/Paris",
               })}
             </span>
           )}

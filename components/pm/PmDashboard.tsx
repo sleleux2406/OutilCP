@@ -16,6 +16,10 @@ import { formatDays } from "@/lib/utils";
 import { sumRollups, formatVariance, getVarianceTone } from "@/lib/rollup-presenter";
 import type { RollupRow } from "@/lib/tickets/types";
 
+// Re-export pour permettre aux pages consommatrices de typer leurs donnees
+// sans avoir besoin de connaitre la structure interne du PmDashboard.
+export type { EpicForDashboard };
+
 export interface PmKpis {
   bugsOpen: number;
   bugsResolved: number;

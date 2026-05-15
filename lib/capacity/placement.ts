@@ -1,4 +1,5 @@
 import type { WeekCapacity } from "@/lib/capacity/etp";
+import { computeAmdahlSpeedup } from "@/lib/capacity/etp";
 
 /**
  * Algorithme de placement des tickets P1 dans la capacité hebdomadaire.
@@ -160,47 +161,101 @@ export function placeP1Tickets(
   }, 0);
 
   // Calcul de la date de fin projetée (au jour ouvré près) :
-  //   - On part du lundi de la dernière semaine utilisée
-  //   - On calcule combien de jours-homme sont alloués cette semaine-là
-  //   - On divise par l'ETP total pour obtenir le nombre de jours calendaires nécessaires
-  //   - On avance ce nombre de jours OUVRÉS depuis le lundi (saute samedi/dimanche)
-  //   - Si la semaine est entièrement remplie, fin = vendredi (ou le dernier jour ouvré non férié)
+  //   1. On identifie le dernier ticket placé (celui qui a une allocation
+  //      dans la dernière semaine utilisée).
+  //   2. On calcule l'ETP moyen des semaines où ce ticket est alloué.
+  //   3. On applique la loi d'Amdahl avec dégradation Brooks :
+  //        p(N) = max(0.5, 1 - 0.10 * (N - 1))
+  //        speedup = 1 / ((1-p) + p/N)
+  //      pour obtenir un coefficient de parallélisation realiste.
+  //   4. On calcule la fraction effective de la dernière semaine consommée
+  //      par ce ticket : daysAllocatedInLastWeek / speedup.
+  //   5. On avance ce nombre de jours OUVRÉS depuis le lundi de la dernière
+  //      semaine (saute samedi/dimanche).
   let projectedEndDate: Date | null = null;
   if (lastWeekUsed >= 0) {
     const lastWeek = weeks[lastWeekUsed];
-    const allocatedMinutesInLastWeek = allocations
-      .filter(
-        (a) => a.weekStart.getTime() === lastWeek.weekStart.getTime()
-      )
-      .reduce((s, a) => s + a.allocatedMinutes, 0);
 
-    const daysAllocatedInLastWeek = allocatedMinutesInLastWeek / MINUTES_PER_DAY;
-    const etpForLastWeek = lastWeek.totalEtp;
+    // Identifie le DERNIER ticket placé : celui qui a la plus grande
+    // position dans la dernière semaine utilisée.
+    const allocsInLastWeek = allocations
+      .filter((a) => a.weekStart.getTime() === lastWeek.weekStart.getTime())
+      .sort((a, b) => b.position - a.position);
 
-    // Nombre de jours calendaires (ouvrés) nécessaires pour absorber
-    // la charge de la dernière semaine en tenant compte du parallélisme
-    let calendarBusinessDaysNeeded: number;
-    if (etpForLastWeek <= 0) {
-      // Pas d'ETP cette semaine (toute l'équipe en congé/férié) :
-      // on ne peut pas finir, on retombe sur le vendredi
-      calendarBusinessDaysNeeded = 5;
+    if (allocsInLastWeek.length === 0) {
+      // Cas dégénéré : aucune allocation dans la dernière semaine
+      // (ne devrait pas arriver vu la logique ci-dessus)
+      projectedEndDate = new Date(lastWeek.weekStart);
     } else {
-      calendarBusinessDaysNeeded = Math.ceil(daysAllocatedInLastWeek / etpForLastWeek);
-      // Cap à 5 jours ouvrés (la semaine n'a pas plus)
-      calendarBusinessDaysNeeded = Math.min(calendarBusinessDaysNeeded, 5);
-      // Au minimum 1 jour si on a placé quelque chose
-      calendarBusinessDaysNeeded = Math.max(calendarBusinessDaysNeeded, 1);
-    }
+      const lastTicketAlloc = allocsInLastWeek[0];
+      const lastTicketId = lastTicketAlloc.ticketId;
 
-    // Avance depuis le lundi de N-1 jours ouvrés (lundi inclus = j1)
-    projectedEndDate = new Date(lastWeek.weekStart);
-    let stepsToAdvance = calendarBusinessDaysNeeded - 1;
-    while (stepsToAdvance > 0) {
-      projectedEndDate.setUTCDate(projectedEndDate.getUTCDate() + 1);
-      const dow = projectedEndDate.getUTCDay();
-      // Saute samedi (6) et dimanche (0)
-      if (dow !== 0 && dow !== 6) {
-        stepsToAdvance -= 1;
+      // Toutes les allocations de ce dernier ticket (potentiellement réparties
+      // sur plusieurs semaines). On en déduit l'ETP moyen.
+      const lastTicketAllocations = allocations.filter(
+        (a) => a.ticketId === lastTicketId
+      );
+      const weeksOccupiedByLastTicket = new Set(
+        lastTicketAllocations.map((a) => a.weekStart.getTime())
+      );
+      const etpsForLastTicket = weeks
+        .filter((w) => weeksOccupiedByLastTicket.has(w.weekStart.getTime()))
+        .map((w) => w.totalEtp);
+      const avgEtp =
+        etpsForLastTicket.reduce((s, e) => s + e, 0) /
+        Math.max(etpsForLastTicket.length, 1);
+
+      // Loi d'Amdahl + Brooks
+      const speedup = computeAmdahlSpeedup(avgEtp);
+
+      // Combien de jours-homme sont placés dans la dernière semaine pour
+      // CE ticket (et non pour tous les tickets confondus)
+      const daysOfLastTicketInLastWeek =
+        lastTicketAlloc.allocatedMinutes / MINUTES_PER_DAY;
+
+      // Position du ticket dans la semaine : combien de jours-homme TOTAL
+      // (tous tickets) ont été placés AVANT lui dans cette semaine.
+      const daysBeforeInWeek = allocations
+        .filter(
+          (a) =>
+            a.weekStart.getTime() === lastWeek.weekStart.getTime() &&
+            a.position < lastTicketAlloc.position
+        )
+        .reduce((s, a) => s + a.allocatedMinutes / MINUTES_PER_DAY, 0);
+
+      // Pour la portion AVANT (autres tickets de la semaine), on utilise
+      // l'ETP de la semaine elle-même (parallelisme equipe sur d'autres tickets)
+      const speedupOthersInWeek = computeAmdahlSpeedup(lastWeek.totalEtp);
+      const calendarDaysBefore =
+        speedupOthersInWeek > 0
+          ? daysBeforeInWeek / speedupOthersInWeek
+          : daysBeforeInWeek;
+
+      // Pour le dernier ticket lui-meme, on utilise speedup base sur l'ETP
+      // moyen de toutes les semaines qu'il occupe.
+      const calendarDaysForLastTicket =
+        speedup > 0 ? daysOfLastTicketInLastWeek / speedup : daysOfLastTicketInLastWeek;
+
+      // Total de jours calendaires consommés DANS la dernière semaine
+      // jusqu'à la fin du dernier ticket
+      let totalCalendarDaysInLastWeek =
+        calendarDaysBefore + calendarDaysForLastTicket;
+
+      // Borné entre 1 et 5 jours ouvrés
+      let calendarBusinessDaysNeeded = Math.ceil(totalCalendarDaysInLastWeek);
+      calendarBusinessDaysNeeded = Math.min(calendarBusinessDaysNeeded, 5);
+      calendarBusinessDaysNeeded = Math.max(calendarBusinessDaysNeeded, 1);
+
+      // Avance depuis le lundi de N-1 jours ouvrés (lundi inclus = j1)
+      projectedEndDate = new Date(lastWeek.weekStart);
+      let stepsToAdvance = calendarBusinessDaysNeeded - 1;
+      while (stepsToAdvance > 0) {
+        projectedEndDate.setUTCDate(projectedEndDate.getUTCDate() + 1);
+        const dow = projectedEndDate.getUTCDay();
+        // Saute samedi (6) et dimanche (0)
+        if (dow !== 0 && dow !== 6) {
+          stepsToAdvance -= 1;
+        }
       }
     }
   }

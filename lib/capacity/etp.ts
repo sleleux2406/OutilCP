@@ -194,3 +194,35 @@ export function computeCapacityForWeeks(
     computeWeekCapacity(weekStart, weekEnd, developers, holidays)
   );
 }
+
+/**
+ * Loi d'Amdahl avec dégradation de la fraction parallélisable selon
+ * la taille de l'équipe (loi de Brooks : "Adding manpower to a late
+ * software project makes it later").
+ *
+ *   p(N) = max(0.5, 1 - 0.25 * (N - 1))
+ *
+ * Concrètement :
+ *   N=1  → p=1.00 (seul, pas de coordination, parallélisme parfait)
+ *   N=2  → p=0.75 (revue + sync notable)
+ *   N=3  → p=0.50 (plancher atteint : équipe de 3 = beaucoup de coordination)
+ *   N≥3  → p=0.50 (plancher : la coordination plafonne le parallélisme)
+ *
+ * Puis le speedup est :
+ *
+ *   speedup(N) = 1 / ((1 - p) + p / N)
+ *
+ * Exemples (5 jours-homme à absorber) :
+ *   N=1 → speedup=1.00 → 5.00j calendaires → vendredi
+ *   N=2 → speedup=1.60 → 3.13j calendaires → jeudi
+ *   N=3 → speedup=1.71 → 2.92j calendaires → mercredi
+ *   N=4 → speedup=1.78 → 2.81j calendaires → mercredi
+ *
+ * Si N <= 0, retourne 1 (pas de division par zéro, durée = estim).
+ */
+export function computeAmdahlSpeedup(n: number): number {
+  if (n <= 1) return Math.max(n, 1); // 1 dev = 1×, 0 dev = 1× (sécurité)
+  const p = Math.max(0.5, 1 - 0.25 * (n - 1));
+  const speedup = 1 / (1 - p + p / n);
+  return speedup;
+}

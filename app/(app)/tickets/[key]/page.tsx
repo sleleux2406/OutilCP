@@ -18,6 +18,7 @@ import { Progress } from "@/components/ui/progress";
 import { TestRunnerLauncher } from "@/components/test-runner/TestRunnerLauncher";
 import { TimeLogForm } from "@/components/time/TimeLogForm";
 import { CreateBugButton } from "@/components/bugs/CreateBugButton";
+import { CreateChildTicketButton } from "@/components/tickets/CreateChildTicketButton";
 import { TestCaseList } from "@/components/test-cases/TestCaseList";
 import { TicketStatusPicker } from "@/components/tickets/TicketStatusPicker";
 import { TicketChildren } from "@/components/tickets/TicketChildren";
@@ -218,6 +219,16 @@ export default async function TicketPage({ params }: PageProps) {
               />
             </>
           )}
+          <CreateChildTicketButton
+            projectId={ticket.projectId}
+            parent={{
+              id: ticket.id,
+              key: ticket.key,
+              title: ticket.title,
+              type: ticket.type,
+            }}
+            userRole={session.role}
+          />
         </div>
       </header>
 
@@ -280,10 +291,8 @@ export default async function TicketPage({ params }: PageProps) {
             )}
           </section>
 
-          {/* Enfants + bugs liés (pour Epic, Feature, US) */}
-          {ticket.children.length > 0 && (
-            <TicketChildren children={ticket.children} />
-          )}
+          {/* Enfants + bugs liés (toujours visible : permet d'inviter à créer un sous-ticket même quand vide) */}
+          <TicketChildren children={ticket.children} />
 
           {testable && (
             <section className="border rounded-lg p-5 bg-card">

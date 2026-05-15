@@ -99,7 +99,8 @@ export function CreateTicketDialog({
     setType(defaultType ?? allowedTypes[0] ?? "EPIC");
     setTitle("");
     setDescription("");
-    setParentId(defaultParentId ?? null);
+    // Si le parent est verrouille, on le conserve apres reset
+    setParentId(lockedParent?.id ?? defaultParentId ?? null);
     setPriority(3);
     setEstimatedDays("");
     setAssigneeId("");
@@ -179,6 +180,7 @@ export function CreateTicketDialog({
               id="ticket-type"
               value={type}
               onChange={(e) => setType(e.target.value as CreatableType)}
+              disabled={!!lockedParent && allowedTypes.length === 1}
             >
               {allowedTypes.map((t) => (
                 <option key={t} value={t}>
@@ -186,10 +188,40 @@ export function CreateTicketDialog({
                 </option>
               ))}
             </Select>
+            {!!lockedParent && allowedTypes.length === 1 && (
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Type imposé par le parent {lockedParent.key} ({TICKET_TYPE_META[lockedParent.type].label}).
+              </p>
+            )}
           </div>
 
           {/* Parent (si applicable) */}
-          {needsParent && (
+          {needsParent && lockedParent && (
+            <div>
+              <Label>Parent</Label>
+              <div className="flex items-center gap-2 px-3 py-2 rounded-md border bg-muted/30">
+                {(() => {
+                  const ParentIcon = TICKET_TYPE_META[lockedParent.type].icon;
+                  return (
+                    <ParentIcon
+                      className={`w-4 h-4 ${TICKET_TYPE_META[lockedParent.type].iconColor}`}
+                      aria-hidden
+                    />
+                  );
+                })()}
+                <span className="font-mono text-xs text-muted-foreground">
+                  {lockedParent.key}
+                </span>
+                <span className="text-sm truncate">{lockedParent.title}</span>
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">
+                Parent verrouillé : ce sous-ticket sera créé sous {lockedParent.key}.
+              </p>
+            </div>
+          )}
+
+          {/* Parent picker classique si pas de lockedParent */}
+          {needsParent && !lockedParent && (
             <div>
               <Label>
                 Parent *{" "}

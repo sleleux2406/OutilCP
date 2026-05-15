@@ -20,6 +20,10 @@ interface Props {
   planGeneratedAt: string | null;
   projectedEndDate: string | null;
   leftoverMinutes: number;
+  /** True si les congés/fériés ont changé depuis la dernière génération du plan */
+  isPlanStale: boolean;
+  /** ISO du dernier ajout/suppression de congé ou férié */
+  lastDataChangeAt: string | null;
 }
 
 const MINUTES_PER_DAY = 480;
@@ -66,6 +70,8 @@ export function CapacityTimeline({
   planGeneratedAt,
   projectedEndDate,
   leftoverMinutes,
+  isPlanStale,
+  lastDataChangeAt,
 }: Props) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
@@ -144,6 +150,20 @@ export function CapacityTimeline({
           <div className="flex items-center gap-1.5 text-sm text-orange-700">
             <AlertTriangle className="h-4 w-4" />
             <strong>{formatDays(leftoverMinutes)} non placés</strong>
+          </div>
+        )}
+
+        {isPlanStale && (
+          <div
+            className="flex items-center gap-1.5 text-sm text-amber-800 bg-amber-100 border border-amber-300 rounded-md px-2 py-1 animate-pulse"
+            title={
+              lastDataChangeAt
+                ? `Les congés ou jours fériés ont été modifiés le ${new Date(lastDataChangeAt).toLocaleString("fr-FR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Paris" })}, après la dernière génération du plan. Cliquez "Recalculer" pour rafraîchir le placement.`
+                : "Les données ont changé depuis la génération du plan. Cliquez Recalculer."
+            }
+          >
+            <AlertTriangle className="h-4 w-4" />
+            <strong>Plan obsolète</strong>
           </div>
         )}
 
@@ -256,6 +276,13 @@ export function CapacityTimeline({
                           <span className="text-xs font-medium">
                             {formatDays(capacityMinutes)}
                           </span>
+                        </div>
+                        {/* Coefficient Amdahl + Brooks */}
+                        <div
+                          className="text-[10px] text-muted-foreground mt-0.5"
+                          title={`Coefficient de parallélisme (loi d'Amdahl + Brooks) : ${week.totalEtp} dev(s) → speedup ×${week.amdahlSpeedup.toFixed(2)}. Utilisé pour calculer la fin projetée des tickets.`}
+                        >
+                          parallélisme : ×{week.amdahlSpeedup.toFixed(2)}
                         </div>
                         {week.holidayDays > 0 && (
                           <div className="text-[10px] text-orange-700 mt-0.5">

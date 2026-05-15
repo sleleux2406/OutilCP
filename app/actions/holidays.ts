@@ -79,6 +79,7 @@ export async function createHolidayAction(
   // le board/overview pour forcer un refresh côté UI.
   revalidatePath("/projects/[key]/board", "page");
   revalidatePath("/projects/[key]/overview", "page");
+  revalidatePath("/projects/[key]/capacity", "page");
 
   return { ok: true, id: created.id };
 }
@@ -129,6 +130,7 @@ export async function deleteHolidayAction(
   revalidatePath("/admin/holidays");
   revalidatePath("/projects/[key]/board", "page");
   revalidatePath("/projects/[key]/overview", "page");
+  revalidatePath("/projects/[key]/capacity", "page");
 
   return { ok: true };
 }

@@ -65,6 +65,10 @@ export type GetCapacityViewResult =
       planGeneratedAt: string | null;
       projectedEndDate: string | null;
       leftoverMinutes: number;
+      /** ISO du dernier ajout/suppression de congé ou férié (toutes équipes confondues) */
+      lastDataChangeAt: string | null;
+      /** True si planGeneratedAt < lastDataChangeAt → le plan ne reflète plus les données actuelles */
+      isPlanStale: boolean;
     }
   | { ok: false; error: "VALIDATION" | "FORBIDDEN" | "NOT_FOUND" };
 
@@ -216,6 +220,43 @@ export async function getCapacityViewAction(
     return { ...w, allocations };
   });
 
+  // 9. Calcul de la fraicheur des donnees : on cherche le timestamp le plus
+  // recent parmi les ajouts (Holiday.createdAt + UserLeave.createdAt) et les
+  // suppressions tracees dans AuditLog (HOLIDAY.DELETED + LEAVE.DELETED).
+  // Si planGeneratedAt < lastDataChangeAt, le plan est obsolete.
+  const [latestHoliday, latestLeave, latestDeletion] = await Promise.all([
+    prisma.holiday.findFirst({
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    }),
+    devIds.length
+      ? prisma.userLeave.findFirst({
+          where: { userId: { in: devIds } },
+          orderBy: { createdAt: "desc" },
+          select: { createdAt: true },
+        })
+      : Promise.resolve(null),
+    prisma.auditLog.findFirst({
+      where: { action: { in: ["HOLIDAY.DELETED", "LEAVE.DELETED"] } },
+      orderBy: { createdAt: "desc" },
+      select: { createdAt: true },
+    }),
+  ]);
+
+  const candidates: Date[] = [];
+  if (latestHoliday) candidates.push(latestHoliday.createdAt);
+  if (latestLeave) candidates.push(latestLeave.createdAt);
+  if (latestDeletion) candidates.push(latestDeletion.createdAt);
+  const lastDataChange =
+    candidates.length > 0
+      ? new Date(Math.max(...candidates.map((d) => d.getTime())))
+      : null;
+
+  const isPlanStale =
+    !!existingPlan &&
+    !!lastDataChange &&
+    existingPlan.generatedAt.getTime() < lastDataChange.getTime();
+
   return {
     ok: true,
     project,
@@ -225,6 +266,8 @@ export async function getCapacityViewAction(
     planGeneratedAt: existingPlan?.generatedAt.toISOString() ?? null,
     projectedEndDate: existingPlan?.projectedEndDate?.toISOString() ?? null,
     leftoverMinutes: existingPlan?.leftoverMinutes ?? 0,
+    lastDataChangeAt: lastDataChange?.toISOString() ?? null,
+    isPlanStale,
   };
 }
 

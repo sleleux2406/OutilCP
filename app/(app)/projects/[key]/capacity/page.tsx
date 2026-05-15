@@ -62,6 +62,8 @@ export default async function CapacityPage({ params }: PageProps) {
         planGeneratedAt={result.planGeneratedAt}
         projectedEndDate={result.projectedEndDate}
         leftoverMinutes={result.leftoverMinutes}
+        isPlanStale={result.isPlanStale}
+        lastDataChangeAt={result.lastDataChangeAt}
       />
     </div>
   );

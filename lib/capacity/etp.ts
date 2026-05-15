@@ -39,6 +39,8 @@ export interface WeekCapacity {
   totalEtp: number;
   /** Capacité totale en jours-homme */
   totalDays: number;
+  /** Coefficient de parallélisme Amdahl + Brooks (speedup effectif) */
+  amdahlSpeedup: number;
   /** Détail par développeur */
   perDeveloper: Array<{
     userId: string;
@@ -168,6 +170,7 @@ export function computeWeekCapacity(
 
   const totalEtp = perDeveloper.reduce((sum, d) => sum + d.etp, 0);
   const totalDays = perDeveloper.reduce((sum, d) => sum + d.days, 0);
+  const amdahlSpeedup = computeAmdahlSpeedup(totalEtp);
 
   return {
     weekStart,
@@ -176,6 +179,7 @@ export function computeWeekCapacity(
     holidayDays,
     totalEtp: Math.round(totalEtp * 100) / 100,
     totalDays,
+    amdahlSpeedup: Math.round(amdahlSpeedup * 100) / 100,
     perDeveloper,
   };
 }

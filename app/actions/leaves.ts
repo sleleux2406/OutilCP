@@ -136,6 +136,7 @@ export async function createLeaveAction(
   revalidatePath(`/users/${data.userId}/leaves`);
   revalidatePath("/projects/[key]/board", "page");
   revalidatePath("/projects/[key]/overview", "page");
+  revalidatePath("/projects/[key]/capacity", "page");
 
   return { ok: true, id: created.id };
 }
@@ -197,6 +198,7 @@ export async function deleteLeaveAction(
   revalidatePath(`/users/${existing.userId}/leaves`);
   revalidatePath("/projects/[key]/board", "page");
   revalidatePath("/projects/[key]/overview", "page");
+  revalidatePath("/projects/[key]/capacity", "page");
 
   return { ok: true };
 }

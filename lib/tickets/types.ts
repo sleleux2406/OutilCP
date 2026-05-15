@@ -34,6 +34,10 @@ export interface KanbanTicket {
     totalEstimatedMinutes: number;
     totalLoggedMinutes: number;
     totalRemainingMinutes: number;
+    /** RAF de la Feature elle-même (hors enfants). */
+    totalRemainingSelfMinutes: number;
+    /** Σ RAF des Tasks/Bugs chiffrés descendants. */
+    totalRemainingChildrenMinutes: number;
     totalProjectedMinutes: number;
     varianceMinutes: number;
     progressPercent: number;
@@ -45,6 +49,10 @@ export interface RollupRow {
   totalEstimatedMinutes: number;
   totalLoggedMinutes: number;
   totalRemainingMinutes: number;
+  /** RAF du ticket lui-même (hors enfants). */
+  totalRemainingSelfMinutes: number;
+  /** Σ RAF des Tasks/Bugs chiffrés descendants. */
+  totalRemainingChildrenMinutes: number;
   totalProjectedMinutes: number;
   varianceMinutes: number;
   progressPercent: number;

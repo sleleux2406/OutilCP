@@ -37,6 +37,8 @@ const RollupRowSchema = z.object({
   totalEstimatedMinutes: numericLike,
   totalLoggedMinutes: numericLike,
   totalRemainingMinutes: numericLike,
+  totalRemainingSelfMinutes: numericLike,
+  totalRemainingChildrenMinutes: numericLike,
   totalProjectedMinutes: numericLike,
   varianceMinutes: numericLike,
   usCount: numericLike,
@@ -48,7 +50,8 @@ const RollupRowSchema = z.object({
 
 const COLUMNS = `
   "ticketId", "totalEstimatedMinutes", "totalLoggedMinutes",
-  "totalRemainingMinutes", "totalProjectedMinutes", "varianceMinutes",
+  "totalRemainingMinutes", "totalRemainingSelfMinutes", "totalRemainingChildrenMinutes",
+  "totalProjectedMinutes", "varianceMinutes",
   "usCount", "bugCount", "featureCount", "taskCount", "progressPercent"
 `;
 
@@ -58,6 +61,8 @@ function emptyRollup(ticketId: string): RollupRow {
     totalEstimatedMinutes: 0,
     totalLoggedMinutes: 0,
     totalRemainingMinutes: 0,
+    totalRemainingSelfMinutes: 0,
+    totalRemainingChildrenMinutes: 0,
     totalProjectedMinutes: 0,
     varianceMinutes: 0,
     usCount: 0,

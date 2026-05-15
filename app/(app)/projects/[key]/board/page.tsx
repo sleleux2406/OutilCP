@@ -183,6 +183,8 @@ export default async function BoardPage({ params }: PageProps) {
             totalEstimatedMinutes: rollup.totalEstimatedMinutes,
             totalLoggedMinutes: rollup.totalLoggedMinutes,
             totalRemainingMinutes: rollup.totalRemainingMinutes,
+            totalRemainingSelfMinutes: rollup.totalRemainingSelfMinutes,
+            totalRemainingChildrenMinutes: rollup.totalRemainingChildrenMinutes,
             totalProjectedMinutes: rollup.totalProjectedMinutes,
             varianceMinutes: rollup.varianceMinutes,
             progressPercent: rollup.progressPercent,

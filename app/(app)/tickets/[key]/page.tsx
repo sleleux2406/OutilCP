@@ -360,6 +360,20 @@ export default async function TicketPage({ params }: PageProps) {
                   {formatDays(rollup.totalRemainingMinutes)}
                 </span>
               </div>
+              {/* Décomposition propre / enfants visible uniquement si la
+                  Feature a au moins une part déléguée à des Tasks */}
+              {rollup.totalRemainingChildrenMinutes > 0 && (
+                <div className="ml-3 pl-3 border-l-2 border-muted space-y-1 text-xs">
+                  <div className="flex justify-between tabular-nums">
+                    <span className="text-muted-foreground">↳ Propre Feature</span>
+                    <span>{formatDays(rollup.totalRemainingSelfMinutes)}</span>
+                  </div>
+                  <div className="flex justify-between tabular-nums">
+                    <span className="text-muted-foreground">↳ Tâches enfants</span>
+                    <span>{formatDays(rollup.totalRemainingChildrenMinutes)}</span>
+                  </div>
+                </div>
+              )}
 
               {/* Barre de progression loggé / estimé */}
               <Progress

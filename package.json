@@ -13,6 +13,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:studio": "prisma studio",
     "db:seed": "tsx prisma/seed.ts",
+    "db:apply-all": "bash scripts/apply-all-migrations.sh",
     "retention": "tsx lib/retention.ts"
   },
   "dependencies": {

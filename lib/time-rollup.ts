@@ -46,13 +46,15 @@ const RollupRowSchema = z.object({
   featureCount: numericLike,
   taskCount: numericLike,
   progressPercent: numericLike,
+  isContainer: z.boolean(),
 });
 
 const COLUMNS = `
   "ticketId", "totalEstimatedMinutes", "totalLoggedMinutes",
   "totalRemainingMinutes", "totalRemainingSelfMinutes", "totalRemainingChildrenMinutes",
   "totalProjectedMinutes", "varianceMinutes",
-  "usCount", "bugCount", "featureCount", "taskCount", "progressPercent"
+  "usCount", "bugCount", "featureCount", "taskCount", "progressPercent",
+  "isContainer"
 `;
 
 function emptyRollup(ticketId: string): RollupRow {
@@ -70,6 +72,7 @@ function emptyRollup(ticketId: string): RollupRow {
     featureCount: 0,
     taskCount: 0,
     progressPercent: 0,
+    isContainer: false,
   };
 }
 

@@ -5,11 +5,20 @@ import { prisma } from "@/lib/prisma";
 import { requireAuth, canEditTicket } from "@/lib/auth";
 import { LogTimeSchema, type LogTimeInput } from "@/lib/tickets/schemas";
 import { recomputeAndSaveEndDate, rollupDatesToParent } from "@/lib/tickets/dates";
-import { freezeFeatureEstimationIfNeeded } from "@/lib/tickets/freeze-estimation";
+import { freezeContainerEstimationIfNeeded } from "@/lib/tickets/freeze-estimation";
+import { isContainerModeForType } from "@/lib/tickets/container-mode";
 
 export type LogTimeResult =
   | { ok: true; totalLoggedMinutes: number }
-  | { ok: false; error: "FORBIDDEN" | "NOT_FOUND" | "VALIDATION" | "TODO_TASK" };
+  | {
+      ok: false;
+      error:
+        | "FORBIDDEN"
+        | "NOT_FOUND"
+        | "VALIDATION"
+        | "TODO_TASK"
+        | "BUG_IS_CONTAINER";
+    };
 
 /**
  * Logger du temps sur un ticket.
@@ -63,16 +72,29 @@ export async function logTimeAction(input: LogTimeInput): Promise<LogTimeResult>
     return { ok: false, error: "FORBIDDEN" };
   }
 
+  // Lot C1 : si le ticket est un BUG en mode container (>= 1 Task chiffree enfant),
+  // on bloque le log direct pour TOUS les roles. Le log doit se faire sur les Tasks
+  // pour eviter le double comptage avec le rollup.
+  if (ticket.type === "BUG") {
+    const children = await prisma.ticket.findMany({
+      where: { parentId: ticket.id },
+      select: { type: true, isEstimated: true },
+    });
+    if (isContainerModeForType("BUG", children)) {
+      return { ok: false, error: "BUG_IS_CONTAINER" };
+    }
+  }
+
   if (!(await canEditTicket(session, ticket))) {
     return { ok: false, error: "FORBIDDEN" };
   }
 
   const result = await prisma.$transaction(async (tx) => {
-    // GEL DE L'ESTIM FEATURE : AVANT d'incrémenter loggedMinutes, on capture
-    // éventuellement la somme hybride courante dans la Feature parente (s'il
-    // s'agit du tout premier log du sous-arbre). Après ça, l'estim ne bougera
-    // plus même si de nouvelles Tasks sont ajoutées.
-    await freezeFeatureEstimationIfNeeded(tx, data.ticketId);
+    // GEL DE L'ESTIM CONTAINER : AVANT d'incrémenter loggedMinutes, on capture
+    // éventuellement la somme hybride courante dans le container parent
+    // (Feature ou Bug en mode container). Si c'est le tout premier log du
+    // sous-arbre, l'estim devient figée même si de nouvelles Tasks sont ajoutées.
+    await freezeContainerEstimationIfNeeded(tx, data.ticketId);
 
     await tx.timeEntry.create({
       data: {

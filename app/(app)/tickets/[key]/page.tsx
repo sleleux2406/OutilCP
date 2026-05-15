@@ -462,7 +462,10 @@ export default async function TicketPage({ params }: PageProps) {
                 désactivé pour préserver la cohérence de l&apos;atterrissage parent.
               </p>
             ) : (
-              <TimeLogForm ticketId={ticket.id} />
+              <TimeLogForm
+                ticketId={ticket.id}
+                bugIsContainer={ticket.type === "BUG" && rollup.isContainer}
+              />
             )}
           </section>
             </>

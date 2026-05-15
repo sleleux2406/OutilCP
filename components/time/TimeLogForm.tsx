@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
-import { Clock, Loader2 } from "lucide-react";
+import { Clock, Loader2, Info } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,17 +16,42 @@ interface Props {
   onLogged?: (totalMinutes: number) => void;
   /** Affichage compact (une seule ligne) pour intégration dans un footer de carte */
   compact?: boolean;
+  /**
+   * Si true, le formulaire est remplacé par un message explicatif :
+   * "Ce Bug a des Tasks chiffrées, loggez votre temps directement sur les Tasks"
+   */
+  bugIsContainer?: boolean;
 }
 
 /**
  * Formulaire de log de temps. Saisie en jours + heures (1 jour = 8h).
  * Max 24h par entrée, contrainte alignée avec CHECK SQL côté BDD.
  */
-export function TimeLogForm({ ticketId, onLogged, compact = false }: Props) {
+export function TimeLogForm({ ticketId, onLogged, compact = false, bugIsContainer = false }: Props) {
   const [days, setDays] = useState("");
   const [hours, setHours] = useState("");
   const [description, setDescription] = useState("");
   const [isPending, startTransition] = useTransition();
+
+  // Lot C1 : si le Bug est un container, on n'affiche pas le formulaire mais
+  // un message invitant a logger sur les Tasks enfants.
+  if (bugIsContainer) {
+    return (
+      <div className="rounded-md border border-blue-200 bg-blue-50 dark:bg-blue-950/30 dark:border-blue-800/50 p-3 text-sm">
+        <div className="flex items-start gap-2">
+          <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" aria-hidden />
+          <div className="space-y-1">
+            <p className="font-medium text-blue-900 dark:text-blue-100">
+              Log de temps désactivé sur ce Bug
+            </p>
+            <p className="text-xs text-blue-800 dark:text-blue-200">
+              Ce Bug a des Tasks chiffrées en cours de réalisation. Loggez votre temps directement sur les Tasks dans la section "Tickets liés" ci-dessous, le total remontera automatiquement vers le Bug.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +89,8 @@ export function TimeLogForm({ ticketId, onLogged, compact = false }: Props) {
             ? "Ticket introuvable"
             : res.error === "TODO_TASK"
             ? "Impossible de logger du temps sur une tâche TODO (non chiffrée)"
+            : res.error === "BUG_IS_CONTAINER"
+            ? "Ce Bug a des Tasks chiffrées : loggez votre temps directement sur les Tasks"
             : "Saisie invalide";
         toast.error(msg);
         return;

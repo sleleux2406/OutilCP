@@ -60,6 +60,15 @@ export interface RollupRow {
   bugCount: number;
   featureCount: number;
   taskCount: number;
+  /**
+   * Mode container du ticket (Lot C1) :
+   *   - true : FEATURE avec Task/Bug enfants, OU BUG avec Task chiffrée enfant
+   *   - false : ticket en mode feuille (Task, Bug simple, US, Epic, Feature sans enfants)
+   *
+   * Quand `isContainer = true`, l'estim/RAF/log directs sont gérés via
+   * le rollup et le mécanisme de gel (frozenSelfMinutes).
+   */
+  isContainer: boolean;
 }
 
 /**

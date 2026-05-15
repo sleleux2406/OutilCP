@@ -126,22 +126,38 @@ export async function getCapacityViewAction(
       status: true,
       estimatedMinutes: true,
       createdAt: true,
-      parent: { select: { key: true } },
+      parent: { select: { id: true, key: true, type: true } },
     },
     orderBy: { createdAt: "asc" },
   });
 
-  // 5. Pour les FEATURE, on remplace estimatedMinutes par totalEstimatedMinutes du rollup
-  const rollups = tickets.some((t) => t.type === "FEATURE")
-    ? await getProjectRollups(project.id)
-    : new Map();
+  // 5. Charge les rollups (utilises pour Feature et Bug container)
+  // ainsi que le statut container pour decider du mode d'affichage.
+  const rollups = await getProjectRollups(project.id);
 
   const p1Tickets: CapacityViewP1Ticket[] = tickets
+    .filter((t) => {
+      // Lot C1 : exclure les Tasks dont le parent est un Bug container
+      // (deja absorbees dans le rollup du Bug parent, eviter double comptage).
+      if (t.type === "TASK" && t.parent?.type === "BUG") {
+        const parentRollup = rollups.get(t.parent.id);
+        if (parentRollup?.isContainer) return false;
+      }
+      return true;
+    })
     .map((t) => {
-      const effort =
-        t.type === "FEATURE"
-          ? rollups.get(t.id)?.totalEstimatedMinutes ?? 0
-          : t.estimatedMinutes ?? 0;
+      // Pour FEATURE : toujours utiliser le rollup (mode container historique)
+      // Pour BUG : utiliser le rollup uniquement si c'est un container, sinon estim propre
+      // Pour TASK : toujours estim propre
+      const rollup = rollups.get(t.id);
+      let effort: number;
+      if (t.type === "FEATURE") {
+        effort = rollup?.totalEstimatedMinutes ?? 0;
+      } else if (t.type === "BUG" && rollup?.isContainer) {
+        effort = rollup.totalEstimatedMinutes;
+      } else {
+        effort = t.estimatedMinutes ?? 0;
+      }
       return {
         id: t.id,
         key: t.key,
@@ -359,26 +375,41 @@ export async function autoPlaceP1Action(
       type: true,
       estimatedMinutes: true,
       createdAt: true,
+      parent: { select: { id: true, type: true } },
     },
     orderBy: { createdAt: "asc" },
   });
 
-  const rollups = tickets.some((t) => t.type === "FEATURE")
-    ? await getProjectRollups(project.id)
-    : new Map();
+  const rollups = await getProjectRollups(project.id);
 
   const p1Tickets: P1Ticket[] = tickets
-    .map((t) => ({
-      id: t.id,
-      key: t.key,
-      title: t.title,
-      type: t.type as "TASK" | "BUG" | "FEATURE",
-      estimatedMinutes:
-        t.type === "FEATURE"
-          ? rollups.get(t.id)?.totalEstimatedMinutes ?? 0
-          : t.estimatedMinutes ?? 0,
-      createdAt: t.createdAt,
-    }))
+    .filter((t) => {
+      // Lot C1 : exclure les Tasks dont le parent est un Bug container
+      if (t.type === "TASK" && t.parent?.type === "BUG") {
+        const parentRollup = rollups.get(t.parent.id);
+        if (parentRollup?.isContainer) return false;
+      }
+      return true;
+    })
+    .map((t) => {
+      const rollup = rollups.get(t.id);
+      let effort: number;
+      if (t.type === "FEATURE") {
+        effort = rollup?.totalEstimatedMinutes ?? 0;
+      } else if (t.type === "BUG" && rollup?.isContainer) {
+        effort = rollup.totalEstimatedMinutes;
+      } else {
+        effort = t.estimatedMinutes ?? 0;
+      }
+      return {
+        id: t.id,
+        key: t.key,
+        title: t.title,
+        type: t.type as "TASK" | "BUG" | "FEATURE",
+        estimatedMinutes: effort,
+        createdAt: t.createdAt,
+      };
+    })
     .filter((t) => t.estimatedMinutes > 0);
 
   // Calcule la capacité

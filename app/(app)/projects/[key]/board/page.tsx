@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, LayoutDashboard, CalendarDays } from "lucide-react";
+import { ChevronLeft, LayoutDashboard, CalendarDays, ClipboardCheck } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { getProjectRollups } from "@/lib/time-rollup";
@@ -194,6 +194,10 @@ export default async function BoardPage({ params }: PageProps) {
   });
 
   const canPilot = session.role === "ADMIN" || session.role === "PRODUCT_OWNER";
+  const canSeeTests =
+    session.role === "ADMIN" ||
+    session.role === "PRODUCT_OWNER" ||
+    session.role === "TESTER";
   const isSubProject = project.parentProjectId !== null;
 
   return (
@@ -253,6 +257,16 @@ export default async function BoardPage({ params }: PageProps) {
             >
               <CalendarDays className="h-4 w-4" />
               Capacité
+            </Link>
+          )}
+          {canSeeTests && (
+            <Link
+              href={`/projects/${project.key}/tests`}
+              className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border hover:bg-accent"
+              title="Cahier de tests : exécuter les tests et exporter le reporting"
+            >
+              <ClipboardCheck className="h-4 w-4" />
+              Cahier de tests
             </Link>
           )}
         </div>

@@ -190,6 +190,25 @@ model Ticket {
   // Exécution de test qui a généré ce bug (si type = BUG issu d'un KO)
   sourceExecution TestExecution? @relation("BugFromKo")
 
+  // ─── EPIC E04 - Versioning des specs (Module 1.1 + 1.2) ───
+  // Identifiant fonctionnel STABLE de la Feature (ex: "F02.4"). Cle de doublon
+  // pour l'import/synchronisation JSON. NE DOIT PAS etre modifie apres creation.
+  // Null pour les types autres que FEATURE.
+  idFeatureSource String?
+  // Version du JSON de specifications qui a CREE le ticket (immuable). Ex: "retrospec-1"
+  versionCreation String?
+  // Version COURANTE des specifications. Mise a jour a chaque re-import si l'idFeatureSource matche.
+  versionSpecsCourante String?
+  // Pour les tickets enfants (Task/Bug/US) crees sous une Feature : copie de
+  // la versionSpecsCourante de la Feature parente AU MOMENT de la creation.
+  // Trace l'origine des specs ayant servi a creer le ticket. Immuable.
+  versionSpecsOriginelle String?
+  // Derniere version exportee (cahier de tests / specs) pour cette Feature.
+  // Permet de calculer le compteur "Features non exportees dans la version actuelle".
+  lastExportedAtVersion String?
+  // Horodatage du dernier export
+  lastExportedAt DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -198,6 +217,7 @@ model Ticket {
   @@index([assigneeId])
   @@index([type])
   @@index([path])
+  @@index([projectId, idFeatureSource]) // recherche par cle fonctionnelle (anti-doublon import)
 }
 
 // ─────────────────────────────────────────────────────────────

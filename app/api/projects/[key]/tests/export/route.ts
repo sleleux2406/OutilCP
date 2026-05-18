@@ -155,6 +155,34 @@ export async function GET(req: NextRequest, { params }: Params) {
     })
     .catch(() => {});
 
+  // Module 1.3 : marque toutes les Features du projet comme "exportees a leur version courante"
+  // Cela retire ces Features du compteur "en retard d'export" (badge dans le header).
+  await prisma.ticket
+    .updateMany({
+      where: {
+        projectId: project.id,
+        type: "FEATURE",
+        // On ne marque que les Features qui ont une versionSpecsCourante definie
+        versionSpecsCourante: { not: null },
+      },
+      data: {
+        lastExportedAt: new Date(),
+        // Aligne lastExportedAtVersion sur versionSpecsCourante via raw update
+        // Note : Prisma updateMany ne supporte pas la copie d'un champ a un autre,
+        // donc on fait un raw update pour aligner les deux colonnes.
+      },
+    })
+    .catch(() => {});
+
+  // Aligne lastExportedAtVersion = versionSpecsCourante via SQL raw
+  await prisma.$executeRaw`
+    UPDATE "Ticket"
+    SET "lastExportedAtVersion" = "versionSpecsCourante"
+    WHERE "projectId" = ${project.id}
+      AND "type" = 'FEATURE'
+      AND "versionSpecsCourante" IS NOT NULL
+  `.catch(() => {});
+
   // Genere le contenu selon le format
   const dateStr = new Date().toISOString().slice(0, 10);
   const filenameBase = `cahier-tests-${project.key}-${dateStr}`;

@@ -30,6 +30,33 @@ export interface KanbanTicket {
   /** False si la tâche est une TODO non chiffrée (ne compte pas dans l'agrégation). */
   isEstimated?: boolean;
   testStats?: { passed: number; failed: number; total: number };
+  /**
+   * Module 1.1 : version actuelle des specs sur ce ticket (Feature uniquement).
+   */
+  versionSpecsCourante?: string | null;
+  /**
+   * Module 1.1 : version des specs au moment de la creation (heritee du parent).
+   * Pour les Tasks/Bugs/US sous une Feature.
+   */
+  versionSpecsOriginelle?: string | null;
+  /**
+   * Module 1.3 : derniere version exportee. Si differente de versionSpecsCourante,
+   * la Feature est consideree "en retard d'export".
+   */
+  lastExportedAtVersion?: string | null;
+  /**
+   * Module 2.2 : nom complet (titre) de la Feature parente, pour affichage sur les cartes Bug.
+   */
+  parentFullTitle?: string | null;
+  /**
+   * Module 2.2 : nom du board RUN source (ex: "Recette v2") quand le bug
+   * vient d'un RUN. Pour affichage sur la carte du Bug.
+   */
+  sourceRunName?: string | null;
+  /**
+   * Module 2.2 : horodatage exact de creation (ISO). Pour affichage detaille.
+   */
+  createdAt?: string | null;
   rollup: {
     totalEstimatedMinutes: number;
     totalLoggedMinutes: number;

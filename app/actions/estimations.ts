@@ -160,6 +160,7 @@ export async function estimateFeatureAction(
       type: true,
       projectId: true,
       path: true,
+      versionSpecsCourante: true,
       children: { select: { type: true }, take: 1 },
     },
   });
@@ -206,6 +207,8 @@ export async function estimateFeatureAction(
           // Règle métier : à froid, RAF = estimation
           remainingMinutes: minutes,
           creatorId: session.userId,
+          // Module 1.1 : heritage de la version des specs depuis la Feature
+          versionSpecsOriginelle: feature.versionSpecsCourante,
         },
         select: { id: true, key: true },
       });
@@ -485,6 +488,8 @@ export async function estimateBugDecomposeAction(
       projectId: true,
       path: true,
       loggedMinutes: true,
+      versionSpecsCourante: true,
+      versionSpecsOriginelle: true,
       children: {
         select: { type: true, isEstimated: true },
         take: 50,
@@ -541,6 +546,10 @@ export async function estimateBugDecomposeAction(
           estimatedMinutes: minutes,
           remainingMinutes: minutes,
           creatorId: session.userId,
+          // Module 1.1 : heritage version specs (le Bug parent peut avoir
+          // versionSpecsCourante ou versionSpecsOriginelle s'il est lui-meme un enfant)
+          versionSpecsOriginelle:
+            bug.versionSpecsCourante ?? bug.versionSpecsOriginelle ?? null,
         },
         select: { id: true, key: true },
       });

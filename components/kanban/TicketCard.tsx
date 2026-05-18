@@ -8,6 +8,24 @@ import { cn, formatDate, formatDays } from "@/lib/utils";
 import { TICKET_TYPE_META, getPriorityMeta } from "@/lib/tickets/metadata";
 import { isOverBudget } from "@/lib/tickets/types";
 import type { KanbanTicket } from "@/lib/tickets/types";
+import { KanbanTestButton } from "./KanbanTestButton";
+
+/**
+ * Formate une date avec date + heure + minutes + secondes (heure de Paris).
+ * Utilise pour M2.2 : afficher l'horodatage exact des bugs sur la carte Kanban.
+ */
+function formatDateTimeFull(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    timeZone: "Europe/Paris",
+  });
+}
 
 interface Props {
   ticket: KanbanTicket;
@@ -131,19 +149,50 @@ export function TicketCard({ ticket, currentUserId, isOverlay = false }: Props) 
         </p>
       )}
 
-      {/* F05.3 : badge de provenance RUN pour les bugs escaladés */}
+      {/* F05.3 + M2.2 : panneau enrichi de provenance RUN pour les bugs escaladés.
+          Affiche : nom complet Feature parente, horodatage exact, nom du RUN source,
+          lien direct vers les specs en lecture seule. */}
       {ticket.sourceRunKey && (
-        <div className="mb-2">
-          <Link
-            href={`/projects/${ticket.sourceRunKey}/board`}
-            onPointerDown={(e) => e.stopPropagation()}
-            onClick={(e) => e.stopPropagation()}
-            className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-amber-500/15 text-amber-700 hover:bg-amber-500/25 dark:text-amber-300 transition-colors"
-            title="Ce bug a été créé depuis un RUN. Cliquez pour accéder au board du RUN."
-          >
+        <div
+          className="mb-2 rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-800/50 p-2 text-[10px] space-y-1"
+          onPointerDown={(e) => e.stopPropagation()}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center gap-1 font-semibold text-amber-800 dark:text-amber-300">
             <Sparkles className="w-3 h-3" aria-hidden />
-            Issu de {ticket.sourceRunKey}
-          </Link>
+            Bug issu d&apos;un RUN
+          </div>
+          {ticket.parentFullTitle && ticket.parentKey && (
+            <div className="text-amber-900 dark:text-amber-200">
+              <span className="font-medium">Feature :</span>{" "}
+              <Link
+                href={`/tickets/${ticket.parentKey}/specs`}
+                className="font-mono hover:underline"
+                title="Voir les specs de la Feature parente (lecture seule)"
+              >
+                {ticket.parentKey}
+              </Link>{" "}
+              — {ticket.parentFullTitle}
+            </div>
+          )}
+          {ticket.sourceRunName && (
+            <div className="text-amber-900 dark:text-amber-200">
+              <span className="font-medium">RUN source :</span>{" "}
+              <Link
+                href={`/projects/${ticket.sourceRunKey}/board`}
+                className="font-mono hover:underline"
+              >
+                {ticket.sourceRunKey}
+              </Link>{" "}
+              — {ticket.sourceRunName}
+            </div>
+          )}
+          {ticket.createdAt && (
+            <div className="text-amber-900 dark:text-amber-200">
+              <span className="font-medium">Créé le :</span>{" "}
+              {formatDateTimeFull(ticket.createdAt)}
+            </div>
+          )}
         </div>
       )}
 
@@ -195,6 +244,13 @@ export function TicketCard({ ticket, currentUserId, isOverlay = false }: Props) 
               {ticket.testStats.passed}/{ticket.testStats.total}
             </span>
           )}
+
+          {/* M2.1 : bouton "Tester" sur les Features/US qui ont des cas de test */}
+          {ticket.testStats &&
+            ticket.testStats.total > 0 &&
+            (ticket.type === "FEATURE" || ticket.type === "USER_STORY") && (
+              <KanbanTestButton ticketId={ticket.id} ticketKey={ticket.key} />
+            )}
         </div>
 
         {ticket.assignee ? (

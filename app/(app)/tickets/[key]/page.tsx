@@ -269,6 +269,20 @@ export default async function TicketPage({ params }: PageProps) {
                   </Link>
                 </p>
               )}
+              {/* M2.2 : lien direct vers la page lecture-seule des specs.
+                  Permet aux developpeurs (qui ne voient pas la Feature dans leur Kanban)
+                  de consulter les specifications sans ouvrir la fiche complete. */}
+              {ticket.parent && (
+                <p className="text-xs mt-1">
+                  <Link
+                    href={`/tickets/${ticket.parent.key}/specs`}
+                    className="inline-flex items-center gap-1 text-blue-700 dark:text-blue-300 hover:underline"
+                    title="Vue lecture seule des specifications de la Feature parente"
+                  >
+                    📘 Voir les specs (lecture seule)
+                  </Link>
+                </p>
+              )}
             </div>
           </div>
         </section>

@@ -84,11 +84,16 @@ export default async function BoardPage({ params }: PageProps) {
         endDate: true,
         isEstimated: true,
         projectId: true,
+        createdAt: true,
         assignee: { select: { id: true, name: true } },
         parent: { select: { key: true, title: true } },
         // F05.3 : pour un bug qui vient d'un RUN enfant, on récupère la clé
         // du RUN pour l'afficher sur la carte
-        project: { select: { key: true, parentProjectId: true } },
+        project: { select: { key: true, name: true, parentProjectId: true } },
+        // Module 1.1 : versioning des specs
+        versionSpecsCourante: true,
+        versionSpecsOriginelle: true,
+        lastExportedAtVersion: true,
         // Pour déduire l'état "à estimer" d'une Feature côté UI
         children: { select: { type: true } },
       },
@@ -165,12 +170,25 @@ export default async function BoardPage({ params }: PageProps) {
       assignee: t.assignee,
       parentKey: t.parent?.key ?? null,
       parentTitle: t.parent?.title ?? null,
+      // M2.2 : nom complet de la Feature parente, exigee pour l'affichage des bugs
+      parentFullTitle: t.parent?.title ?? null,
       // F05.3 : si le bug appartient à un sous-projet RUN (projet avec parentProjectId),
       // on expose la clé du RUN pour l'afficher sur la carte du board parent.
       sourceRunKey:
         t.project.parentProjectId && t.projectId !== project.id
           ? t.project.key
           : null,
+      // M2.2 : nom du RUN source (pour affichage humain sur la carte Bug)
+      sourceRunName:
+        t.project.parentProjectId && t.projectId !== project.id
+          ? t.project.name
+          : null,
+      // M2.2 : horodatage exact pour les bugs
+      createdAt: t.createdAt ? t.createdAt.toISOString() : null,
+      // M1.1 : versions des specs sur les Features
+      versionSpecsCourante: t.versionSpecsCourante,
+      versionSpecsOriginelle: t.versionSpecsOriginelle,
+      lastExportedAtVersion: t.lastExportedAtVersion,
       needsEstimation: isFeatureNeedingEstimation(
         t.type,
         t.children.map((c) => c.type),

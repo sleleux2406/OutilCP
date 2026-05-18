@@ -47,6 +47,7 @@ export async function createBugFromKo(
       type: true,
       parentId: true,
       path: true,
+      versionSpecsCourante: true,
     },
   });
   if (!source) throw new Error("SOURCE_NOT_FOUND");
@@ -83,6 +84,9 @@ export async function createBugFromKo(
       parentId: source.id,
       path: buildPath(source.path, source.id),
       creatorId: input.testerId,
+      // Module 1.1 : heritage de la version des specs depuis le ticket source
+      // (immuable). Permet de tracer quelles specs ont produit ce bug.
+      versionSpecsOriginelle: source.versionSpecsCourante,
     },
   });
 

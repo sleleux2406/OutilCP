@@ -174,12 +174,20 @@ export async function createTicketAction(
     projectId: string;
     path: string;
     key: string;
+    versionSpecsCourante: string | null;
   } | null = null;
 
   if (data.parentId) {
     parent = await prisma.ticket.findUnique({
       where: { id: data.parentId },
-      select: { id: true, type: true, projectId: true, path: true, key: true },
+      select: {
+        id: true,
+        type: true,
+        projectId: true,
+        path: true,
+        key: true,
+        versionSpecsCourante: true,
+      },
     });
     if (!parent) return { ok: false, error: "PARENT_NOT_FOUND" };
     if (parent.projectId !== data.projectId) {
@@ -219,6 +227,10 @@ export async function createTicketAction(
         path: parent ? buildPath(parent.path, parent.id) : "/",
         creatorId: session.userId,
         assigneeId: data.assigneeId ?? null,
+        // Module 1.1 : heritage de la version des specs depuis la Feature parente
+        // Si le parent a une versionSpecsCourante, on la copie dans versionSpecsOriginelle
+        // (immuable) pour ce ticket enfant. Trace l'origine des specs.
+        versionSpecsOriginelle: parent?.versionSpecsCourante ?? null,
       },
       select: { id: true, key: true },
     });

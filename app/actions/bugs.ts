@@ -123,7 +123,14 @@ export async function createFreeBugAction(
 
   const parent = await prisma.ticket.findUnique({
     where: { id: data.parentId },
-    select: { id: true, type: true, projectId: true, path: true, key: true },
+    select: {
+      id: true,
+      type: true,
+      projectId: true,
+      path: true,
+      key: true,
+      versionSpecsCourante: true,
+    },
   });
   if (!parent) return { ok: false, error: "PARENT_NOT_FOUND" };
   if (parent.projectId !== data.projectId) {
@@ -149,6 +156,8 @@ export async function createFreeBugAction(
         parentId: parent.id,
         path: buildPath(parent.path, parent.id),
         creatorId: session.userId,
+        // Module 1.1 : heritage de la version des specs
+        versionSpecsOriginelle: parent.versionSpecsCourante,
       },
       select: { id: true, key: true },
     });

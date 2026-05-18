@@ -66,7 +66,7 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   // 3) Lookup + comparaison mot de passe
   const user = await prisma.user.findUnique({
     where: { email },
-    select: { id: true, hashedPassword: true },
+    select: { id: true, hashedPassword: true, deletedAt: true },
   });
 
   // Anti timing attack : on compare toujours, même avec un hash factice
@@ -74,14 +74,20 @@ export async function loginAction(_prev: LoginState, formData: FormData): Promis
   const hashToCheck = user?.hashedPassword ?? FAKE_HASH;
   const passwordOk = await verifyPassword(password, hashToCheck);
 
-  if (!user || !passwordOk) {
+  // Soft-delete : refuse meme si le mot de passe est correct
+  // (message generique pour ne pas reveler que le compte existait)
+  const isActive = user && !user.deletedAt;
+
+  if (!user || !passwordOk || !isActive) {
     // Audit best-effort (pas bloquant)
     if (user) {
       await prisma.auditLog
         .create({
           data: {
             userId: user.id,
-            action: "AUTH.LOGIN_FAILED",
+            action: !isActive
+              ? "AUTH.LOGIN_FAILED_DEACTIVATED"
+              : "AUTH.LOGIN_FAILED",
             entityType: "User",
             entityId: user.id,
             metadata: { ip, userAgent },

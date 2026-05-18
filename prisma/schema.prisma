@@ -58,6 +58,9 @@ model User {
   role            Role     @default(DEVELOPER)
   // Taux horaire en centimes (évite les erreurs de virgule flottante)
   hourlyRateCents Int      @default(0)
+  // Soft delete : non-null = utilisateur desactive (ne peut plus se connecter)
+  // Permet de conserver l'historique des tickets/audits crees par cet utilisateur
+  deletedAt       DateTime?
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
@@ -72,6 +75,7 @@ model User {
   leaves          UserLeave[]
 
   @@index([role])
+  @@index([deletedAt])
 }
 
 model Session {

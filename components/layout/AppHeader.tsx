@@ -6,6 +6,7 @@ import {
   KanbanSquare,
   LayoutDashboard,
   Sparkles,
+  UserCog,
   Users,
 } from "lucide-react";
 import { LogoutButton } from "@/components/auth/LogoutButton";
@@ -30,6 +31,7 @@ const ROLE_LABEL: Record<Session["role"], string> = {
  */
 export async function AppHeader({ session }: Props) {
   const canPilot = session.role === "ADMIN" || session.role === "PRODUCT_OWNER";
+  const isAdmin = session.role === "ADMIN";
   // Les développeurs n'ont pas accès au téléchargement des specs (doc interne
   // qui contient notamment le modèle sécurité et les rate limits).
   const canDownloadSpecs = session.role !== "DEVELOPER";
@@ -90,6 +92,16 @@ export async function AppHeader({ session }: Props) {
                 Jours fériés
               </Link>
             </>
+          )}
+          {isAdmin && (
+            <Link
+              href="/admin/users"
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md hover:bg-accent"
+              title="Gérer les utilisateurs"
+            >
+              <UserCog className="h-4 w-4" />
+              Utilisateurs
+            </Link>
           )}
           <Link
             href={`/users/${session.userId}/leaves`}

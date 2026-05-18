@@ -105,12 +105,24 @@ export async function getSession(): Promise<Session | null> {
 
   const row = await prisma.session.findUnique({
     where: { tokenHash: hashToken(token) },
-    include: { user: { select: { id: true, name: true, email: true, role: true } } },
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          deletedAt: true,
+        },
+      },
+    },
   });
 
   if (!row) return null;
   if (row.revokedAt) return null;
   if (row.expiresAt < new Date()) return null;
+  // Soft delete : un user desactive ne peut plus avoir de session active
+  if (row.user.deletedAt) return null;
 
   return {
     userId: row.user.id,

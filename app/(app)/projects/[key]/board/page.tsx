@@ -9,11 +9,18 @@ import { CreateBugButton } from "@/components/bugs/CreateBugButton";
 import { CreateTicketButton } from "@/components/tickets/CreateTicketButton";
 import { CreateRunButton } from "@/components/runs/CreateRunButton";
 import { SubProjectsList } from "@/components/runs/SubProjectsList";
-import { KANBAN_VISIBLE_TYPES_BY_ROLE, isFeatureNeedingEstimation } from "@/lib/tickets/hierarchy";
+import { KanbanTypeFilter } from "@/components/kanban/KanbanTypeFilter";
+import {
+  KANBAN_VISIBLE_TYPES_BY_ROLE,
+  KANBAN_TYPE_PRESETS,
+  isFeatureNeedingEstimation,
+  parseTypeFilter,
+} from "@/lib/tickets/hierarchy";
 import type { KanbanTicket } from "@/lib/tickets/types";
 
 interface PageProps {
   params: Promise<{ key: string }>;
+  searchParams: Promise<{ types?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -21,9 +28,10 @@ export async function generateMetadata({ params }: PageProps) {
   return { title: `Kanban ${key}` };
 }
 
-export default async function BoardPage({ params }: PageProps) {
+export default async function BoardPage({ params, searchParams }: PageProps) {
   const session = await requireAuth();
   const { key } = await params;
+  const { types: rawTypes } = await searchParams;
 
   const project = await prisma.project.findUnique({
     where: { key },
@@ -39,8 +47,31 @@ export default async function BoardPage({ params }: PageProps) {
 
   // Filtrage Kanban selon le rôle :
   //   - DEVELOPER : voit Tasks + Bugs (niveau exécution)
-  //   - ADMIN / PRODUCT_OWNER / TESTER : voient Epics + Features (niveau pilotage)
-  const visibleTypes = KANBAN_VISIBLE_TYPES_BY_ROLE[session.role];
+  //   - PRODUCT_OWNER / TESTER : voient Epics + Features (niveau pilotage)
+  //   - ADMIN : voit TOUT par defaut, mais peut filtrer via ?types=... (sous-ensemble
+  //     du role autorise). Les autres roles ignorent le parametre URL.
+  const roleTypes = KANBAN_VISIBLE_TYPES_BY_ROLE[session.role];
+  let visibleTypes = roleTypes;
+  if (session.role === "ADMIN" && rawTypes) {
+    const requested = parseTypeFilter(rawTypes);
+    if (requested) {
+      // On intersecte avec les types autorises pour le role : meme si l'ADMIN
+      // a tout en ALL, on respecte la coherence (anti-future-proofing).
+      const allowedSet = new Set(roleTypes);
+      visibleTypes = requested.filter((t) => allowedSet.has(t));
+      // Fallback si le filtre est vide apres intersection
+      if (visibleTypes.length === 0) visibleTypes = roleTypes;
+    }
+  }
+
+  // Determine quel preset est actif d'apres le set actuel de visibleTypes (ADMIN)
+  const sortedVisible = [...visibleTypes].sort().join(",");
+  const matchPreset = (Object.keys(KANBAN_TYPE_PRESETS) as Array<
+    keyof typeof KANBAN_TYPE_PRESETS
+  >).find(
+    (k) => [...KANBAN_TYPE_PRESETS[k].types].sort().join(",") === sortedVisible
+  );
+  const currentPreset = matchPreset ?? "ALL";
 
   // F05.3 : Escalade des bugs RUN → board parent.
   // Si on est sur un projet racine et que le rôle voit les Bugs, on remonte
@@ -251,6 +282,9 @@ export default async function BoardPage({ params }: PageProps) {
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
+          {session.role === "ADMIN" && (
+            <KanbanTypeFilter currentPreset={currentPreset} />
+          )}
           <CreateTicketButton projectId={project.id} userRole={session.role} />
           <CreateBugButton projectId={project.id} />
           <CreateRunButton

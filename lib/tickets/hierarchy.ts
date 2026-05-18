@@ -80,20 +80,73 @@ export function isTestable(type: TicketType): boolean {
 /**
  * Types visibles par défaut dans le Kanban selon le rôle.
  *
+ *   - ADMIN : voit TOUT par defaut (Epic, Feature, US, Task, Bug). Peut filtrer
+ *     via le selecteur de type sur le board pour reduire la vue (ex: pilotage seul).
+ *   - PRODUCT_OWNER / TESTER : voient Epics + Features (niveau pilotage)
  *   - DEVELOPER : voit les Tasks + tous les Bugs (il intervient sur l'exécution)
- *   - ADMIN / PRODUCT_OWNER / TESTER : voient Epics + Features (niveau pilotage)
  *
  * Un DEV peut accéder à la Feature parente depuis la page détail d'une Task.
+ *
+ * Cette liste est la valeur PAR DEFAUT. Le board peut accepter un parametre
+ * `types` dans l'URL pour filtrer dynamiquement (uniquement pour ADMIN qui a
+ * acces a tout).
  */
 export const KANBAN_VISIBLE_TYPES_BY_ROLE: Record<
   "ADMIN" | "PRODUCT_OWNER" | "DEVELOPER" | "TESTER",
   TicketType[]
 > = {
-  ADMIN: ["EPIC", "FEATURE"],
+  ADMIN: ["EPIC", "FEATURE", "USER_STORY", "TASK", "BUG"],
   PRODUCT_OWNER: ["EPIC", "FEATURE"],
   DEVELOPER: ["TASK", "BUG"],
   TESTER: ["EPIC", "FEATURE"],
 };
+
+/**
+ * Presets de filtres rapides pour le selecteur de type sur le Kanban.
+ * Utilises dans le composant KanbanTypeFilter (ADMIN uniquement, qui voit tout par defaut).
+ *
+ * - ALL : tous les types (defaut ADMIN)
+ * - PILOTAGE : Epic + Feature (vue strategique, mode "PO")
+ * - EXECUTION : Task + Bug + US (vue dev, mode "DEVELOPER")
+ */
+export const KANBAN_TYPE_PRESETS: Record<
+  "ALL" | "PILOTAGE" | "EXECUTION",
+  { label: string; types: TicketType[] }
+> = {
+  ALL: {
+    label: "Tous les tickets",
+    types: ["EPIC", "FEATURE", "USER_STORY", "TASK", "BUG"],
+  },
+  PILOTAGE: {
+    label: "Pilotage (Epic + Feature)",
+    types: ["EPIC", "FEATURE"],
+  },
+  EXECUTION: {
+    label: "Execution (Task + Bug + US)",
+    types: ["USER_STORY", "TASK", "BUG"],
+  },
+};
+
+/**
+ * Parse une chaine "EPIC,FEATURE" en tableau de TicketType valides.
+ * Utilise pour le parametre URL `?types=...` du board.
+ * Filtre les valeurs invalides silencieusement.
+ */
+export function parseTypeFilter(raw: string | null | undefined): TicketType[] | null {
+  if (!raw) return null;
+  const validTypes = new Set<TicketType>([
+    "EPIC",
+    "FEATURE",
+    "USER_STORY",
+    "TASK",
+    "BUG",
+  ]);
+  const parts = raw
+    .split(",")
+    .map((p) => p.trim().toUpperCase())
+    .filter((p): p is TicketType => validTypes.has(p as TicketType));
+  return parts.length > 0 ? parts : null;
+}
 
 /**
  * Une Feature est "à estimer" si elle respecte DEUX conditions :

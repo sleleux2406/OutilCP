@@ -12,6 +12,10 @@ import {
   parseRetroSpec,
   type ParseResult,
 } from "@/lib/specs/parse-retrospec";
+import {
+  parseRetroSpecMarkdown,
+  looksLikeMarkdown,
+} from "@/lib/specs/parse-retrospec-md";
 
 // ─────────────────────────────────────────────────────────────
 // Server Actions — Upload et création de RUN depuis une rétro-spec
@@ -39,6 +43,10 @@ export type PreviewResult =
   | {
       ok: true;
       parsed: ParseResult;
+      /** Format detecte automatiquement : "markdown" ou "text" */
+      detectedFormat: "markdown" | "text";
+      /** Version extraite du frontmatter Markdown si presente, null sinon */
+      detectedVersion: string | null;
     }
   | { ok: false; error: "VALIDATION" | "FORBIDDEN" | "RATE_LIMITED" };
 
@@ -46,6 +54,10 @@ export type PreviewResult =
  * Parse un texte de rétro-spec et retourne le résultat structuré.
  * N'écrit rien en base. Utilisé par l'UI pour afficher un aperçu avant
  * confirmation.
+ *
+ * Auto-detection : si le texte ressemble a du Markdown (contient des headings #),
+ * utilise parseRetroSpecMarkdown. Sinon utilise le parseur texte historique.
+ * Le frontmatter YAML --- version: xxx --- est extrait automatiquement.
  */
 export async function previewSpecAction(
   input: z.input<typeof PreviewSchema>
@@ -62,8 +74,29 @@ export async function previewSpecAction(
   const parsed = PreviewSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "VALIDATION" };
 
+  // Auto-detection format : Markdown si contient des headings ATX
+  if (looksLikeMarkdown(parsed.data.text)) {
+    const mdResult = parseRetroSpecMarkdown(parsed.data.text);
+    return {
+      ok: true,
+      parsed: {
+        epics: mdResult.epics,
+        orphanFeatures: mdResult.orphanFeatures,
+        warnings: mdResult.warnings,
+        counts: mdResult.counts,
+      },
+      detectedFormat: "markdown",
+      detectedVersion: mdResult.detectedVersion,
+    };
+  }
+
   const result = parseRetroSpec(parsed.data.text);
-  return { ok: true, parsed: result };
+  return {
+    ok: true,
+    parsed: result,
+    detectedFormat: "text",
+    detectedVersion: null,
+  };
 }
 
 // ─────────────────────────────────────────────────────────────

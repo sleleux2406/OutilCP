@@ -58,6 +58,8 @@ export function CreateRunDialog({
   const [preview, setPreview] = useState<ParseResult | null>(null);
   const [selectedEpics, setSelectedEpics] = useState<Set<string>>(new Set());
   const [selectedFeatures, setSelectedFeatures] = useState<Set<string>>(new Set());
+  const [detectedFormat, setDetectedFormat] = useState<"markdown" | "text" | null>(null);
+  const [specVersion, setSpecVersion] = useState("v1");
   const [isPending, startTransition] = useTransition();
 
   const reset = () => {
@@ -67,6 +69,8 @@ export function CreateRunDialog({
     setPreview(null);
     setSelectedEpics(new Set());
     setSelectedFeatures(new Set());
+    setDetectedFormat(null);
+    setSpecVersion("v1");
   };
 
   const close = () => {
@@ -108,6 +112,12 @@ export function CreateRunDialog({
       setSelectedEpics(allEpics);
       setSelectedFeatures(allFeatures);
       setRunName(`RUN ${new Date().toLocaleDateString("fr-FR")}`);
+      // Memoise le format detecte pour l'afficher dans la preview
+      setDetectedFormat(res.detectedFormat);
+      // Si une version a ete extraite du frontmatter Markdown, on la pre-remplit
+      if (res.detectedVersion) {
+        setSpecVersion(res.detectedVersion);
+      }
       setStep("preview");
     });
   };
@@ -117,6 +127,17 @@ export function CreateRunDialog({
     if (!preview) return;
     if (runName.trim().length < 3) {
       toast.error("Saisissez un nom de RUN (min 3 caractères)");
+      return;
+    }
+    const trimmedVersion = specVersion.trim() || "v1";
+    if (!/^[a-zA-Z0-9._-]+$/.test(trimmedVersion)) {
+      toast.error(
+        "Version des specs invalide (lettres, chiffres, points, tirets et underscores uniquement)"
+      );
+      return;
+    }
+    if (trimmedVersion.length > 50) {
+      toast.error("Version des specs trop longue (max 50 caractères)");
       return;
     }
 
@@ -147,6 +168,7 @@ export function CreateRunDialog({
       const res = await createRunFromSpecAction({
         parentProjectId,
         runName: runName.trim(),
+        specVersion: specVersion.trim() || "v1",
         epics: filteredEpics,
       });
       if (!res.ok) {
@@ -229,26 +251,86 @@ export function CreateRunDialog({
               onChange={(e) => setText(e.target.value)}
               rows={12}
               maxLength={200_000}
-              placeholder="EPIC E01 : Gouvernance & Administration – FEATURE F01.1 : Gestion de la disponibilité équipe – Description : ... – Règles métier & Contraintes : ...; ... – Scénarios de Test : ... (Résultat : ...); ..."
+              placeholder={`Deux formats supportés (auto-detection) :
+
+# FORMAT MARKDOWN (recommandé)
+
+---
+version: retrospec-1
+---
+
+# EPIC E01 : Gouvernance & Administration
+
+## FEATURE F01.1 : Gestion de la disponibilité équipe
+
+### Description
+Permettre au PO de visualiser les congés.
+
+### Règles métier
+- Une seule plage par jour
+- Visible uniquement par le PO
+
+### Scénarios de test
+- Saisir un congé (Résultat : visible dans le calendrier)
+- Supprimer un congé (Résultat : disparait du calendrier)
+
+# FORMAT TEXTE (legacy)
+EPIC E01 : Titre – FEATURE F01.1 : Titre – Description : ... – Règles métier & Contraintes : ...; ... – Scénarios de Test : ... (Résultat : ...); ...`}
               className="font-mono text-xs flex-1 resize-none"
             />
-            <p className="text-[10px] text-muted-foreground tabular-nums">
-              {text.length} / 200 000 caractères
-            </p>
+            <div className="flex items-center justify-between text-[10px] text-muted-foreground tabular-nums">
+              <span>{text.length} / 200 000 caractères</span>
+              <span className="italic">
+                Format détecté automatiquement : Markdown (avec headings) ou texte (legacy)
+              </span>
+            </div>
           </div>
         )}
 
         {step === "preview" && preview && (
           <div className="flex-1 overflow-y-auto space-y-4 min-h-0">
-            <div>
-              <Label htmlFor="run-name">Nom du RUN *</Label>
-              <Input
-                id="run-name"
-                value={runName}
-                onChange={(e) => setRunName(e.target.value)}
-                maxLength={200}
-                placeholder="Ex : Sprint 1 — Novembre 2025"
-              />
+            {/* Badge format detecte (information visuelle) */}
+            {detectedFormat && (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="text-muted-foreground">Format detecte :</span>
+                <span
+                  className={
+                    detectedFormat === "markdown"
+                      ? "inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-300 font-semibold"
+                      : "inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-500/15 text-slate-700 dark:text-slate-300 font-semibold"
+                  }
+                >
+                  {detectedFormat === "markdown" ? "Markdown" : "Texte (legacy)"}
+                </span>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="run-name">Nom du RUN *</Label>
+                <Input
+                  id="run-name"
+                  value={runName}
+                  onChange={(e) => setRunName(e.target.value)}
+                  maxLength={200}
+                  placeholder="Ex : Sprint 1 — Novembre 2025"
+                />
+              </div>
+              <div>
+                <Label htmlFor="spec-version">Version des specs *</Label>
+                <Input
+                  id="spec-version"
+                  value={specVersion}
+                  onChange={(e) => setSpecVersion(e.target.value)}
+                  maxLength={50}
+                  pattern="[a-zA-Z0-9._-]+"
+                  placeholder="ex: retrospec-1"
+                />
+                <p className="text-[10px] text-muted-foreground mt-1">
+                  Stockee comme versionCreation et versionSpecsCourante (lettres,
+                  chiffres, ._-)
+                </p>
+              </div>
             </div>
 
             {preview.warnings.length > 0 && (

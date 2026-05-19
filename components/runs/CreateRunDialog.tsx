@@ -251,37 +251,49 @@ export function CreateRunDialog({
               onChange={(e) => setText(e.target.value)}
               rows={12}
               maxLength={200_000}
-              placeholder={`Deux formats supportés (auto-detection) :
-
-# FORMAT MARKDOWN (recommandé)
+              placeholder={`Format Markdown (auto-detection, codes auto-generes) :
 
 ---
 version: retrospec-1
 ---
 
-# EPIC E01 : Gouvernance & Administration
+# Authentification
 
-## FEATURE F01.1 : Gestion de la disponibilité équipe
+## Login email/password
 
 ### Description
-Permettre au PO de visualiser les congés.
+Permettre aux utilisateurs de se connecter.
 
 ### Règles métier
-- Une seule plage par jour
-- Visible uniquement par le PO
+- Mot de passe min 8 caractères
+- Lock après 5 tentatives
 
 ### Scénarios de test
-- Saisir un congé (Résultat : visible dans le calendrier)
-- Supprimer un congé (Résultat : disparait du calendrier)
+- Connexion réussie (Résultat : redirection vers /)
+- Mot de passe invalide (Résultat : message d'erreur)
 
-# FORMAT TEXTE (legacy)
-EPIC E01 : Titre – FEATURE F01.1 : Titre – Description : ... – Règles métier & Contraintes : ...; ... – Scénarios de Test : ... (Résultat : ...); ...`}
+## Logout
+
+### Scénarios de test
+- Click logout (Résultat : redirige vers /login)
+
+# Profil utilisateur
+
+## Modifier son nom
+
+
+→ Codes auto-generes : E01 'Authentification', F01.1 'Login...', F01.2 'Logout', E02 'Profil...', F02.1 'Modifier...'
+
+→ Tu peux aussi forcer un code : '# EPIC E05 : Foo' ou '## FEATURE F02.3 : Bar'
+
+→ Format texte legacy aussi supporte : EPIC E01 : ... – FEATURE F01.1 : ... – Description : ... – Règles : ... ; ... – Scénarios : ... (Résultat : ...) ; ...`}
               className="font-mono text-xs flex-1 resize-none"
             />
             <div className="flex items-center justify-between text-[10px] text-muted-foreground tabular-nums">
               <span>{text.length} / 200 000 caractères</span>
               <span className="italic">
-                Format détecté automatiquement : Markdown (avec headings) ou texte (legacy)
+                Codes Epic/Feature optionnels : auto-generes selon l&apos;ordre des
+                headings #/##
               </span>
             </div>
           </div>

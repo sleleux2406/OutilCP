@@ -114,69 +114,8 @@ const LIST_ITEM_RE = /^[\-\*+]\s+(.+)$/;
 const SCENARIO_EXPECTED_RE = /^(.*?)\s*\((?:R[ée]sultat|Resultat|Expected)\s*:\s*(.+?)\)\s*$/i;
 
 /**
- * Extrait un code Epic optionnel (E01, E1, E12...) du debut du texte.
- * Tolere les prefixes "EPIC", "Epic", suivis ou non d'un code.
- *
- * Retourne { code: "E01" | null, title: "..." }
- *
- * Exemples :
- *   "EPIC E03 : Authentification"     -> { code: "E03", title: "Authentification" }
- *   "EPIC : Authentification"         -> { code: null, title: "Authentification" }
- *   "EPIC Authentification"           -> { code: null, title: "Authentification" }
- *   "E03 : Authentification"          -> { code: "E03", title: "Authentification" }
- *   "Authentification"                -> { code: null, title: "Authentification" }
+ * Pad un nombre sur 2 chiffres minimum (1 -> "01", 12 -> "12").
  */
-function parseEpicHeading(text: string): { code: string | null; title: string } {
-  let remaining = text.trim();
-
-  // 1. Strip prefix "EPIC" / "Epic" optionnel (case-insensitive, avec eventuel ":" apres)
-  const epicPrefixMatch = remaining.match(/^EPIC\b\s*[:\-–—]?\s*(.*)$/i);
-  if (epicPrefixMatch) {
-    remaining = epicPrefixMatch[1].trim();
-  }
-
-  // 2. Si on a un code E\d+ au debut, on l'extrait
-  const codeMatch = remaining.match(/^(E\d+)\s*[:\-–—]?\s*(.*)$/i);
-  if (codeMatch) {
-    return {
-      code: codeMatch[1].toUpperCase(),
-      title: codeMatch[2].trim() || remaining,
-    };
-  }
-
-  // 3. Sinon le titre = tout le texte restant
-  return { code: null, title: remaining };
-}
-
-/**
- * Extrait un code Feature optionnel (F01.1, F1.2...) du debut du texte.
- * Meme logique que parseEpicHeading mais pour Feature.
- *
- * Exemples :
- *   "FEATURE F01.1 : Login email"     -> { code: "F01.1", title: "Login email" }
- *   "FEATURE : Login email"           -> { code: null, title: "Login email" }
- *   "F01.1 : Login email"             -> { code: "F01.1", title: "Login email" }
- *   "Login email"                     -> { code: null, title: "Login email" }
- */
-function parseFeatureHeading(text: string): { code: string | null; title: string } {
-  let remaining = text.trim();
-
-  const featPrefixMatch = remaining.match(/^FEATURE\b\s*[:\-–—]?\s*(.*)$/i);
-  if (featPrefixMatch) {
-    remaining = featPrefixMatch[1].trim();
-  }
-
-  const codeMatch = remaining.match(/^(F\d+(?:\.\d+)?)\s*[:\-–—]?\s*(.*)$/i);
-  if (codeMatch) {
-    return {
-      code: codeMatch[1].toUpperCase(),
-      title: codeMatch[2].trim() || remaining,
-    };
-  }
-
-  return { code: null, title: remaining };
-}
-
 function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
 }
@@ -220,8 +159,6 @@ interface ParsingState {
   currentEpicNumber: number;
   /** Compteur de features par Epic (cle = code Epic) pour auto-numerotation des Features */
   featureCountByEpic: Map<string, number>;
-  /** Set de codes Epic deja utilises pour eviter les collisions auto-genere vs explicite */
-  usedEpicCodes: Set<string>;
 }
 
 function flushSection(state: ParsingState): void {
@@ -325,7 +262,6 @@ export function parseRetroSpecMarkdown(input: string): MarkdownParseResult {
     epicAutoCounter: 0,
     currentEpicNumber: 0,
     featureCountByEpic: new Map(),
-    usedEpicCodes: new Set(),
   };
 
   for (const line of lines) {
@@ -346,120 +282,81 @@ export function parseRetroSpecMarkdown(input: string): MarkdownParseResult {
       flushSection(state);
     }
 
-    // Niveau 1 (#) = EPIC
+    // Niveau 1 (#) = EPIC (toujours, peu importe le contenu du titre)
+    // Le titre est pris tel quel : si l'utilisateur ecrit "# EPIC E03 : Foo",
+    // le titre devient "EPIC E03 : Foo". Le code est TOUJOURS auto-genere.
     if (level === 1) {
-      // Le format est tres permissif : "# EPIC E03 : Foo", "# EPIC : Foo",
-      // "# E03 : Foo", "# Foo" ... fonctionnent tous.
-      const { code: parsedCode, title: parsedTitle } = parseEpicHeading(text);
-
-      if (!parsedTitle) {
+      if (!text.trim()) {
         result.warnings.push(
-          `Ligne ignorée : heading H1 sans titre exploitable : "${text.slice(0, 80)}"`
+          `Heading H1 vide ignoré.`
         );
         continue;
       }
 
       flushEpic(state, result);
 
-      // Resolution du code Epic : utilise le code parse si fourni et libre,
-      // sinon auto-genere E01, E02, ... en evitant les collisions.
-      let resolvedCode: string;
-      if (parsedCode && !state.usedEpicCodes.has(parsedCode)) {
-        resolvedCode = parsedCode;
-      } else {
-        if (parsedCode && state.usedEpicCodes.has(parsedCode)) {
-          result.warnings.push(
-            `Code Epic "${parsedCode}" deja utilise, auto-numerotation appliquee.`
-          );
-        }
-        // On incremente jusqu'a trouver un code libre
-        do {
-          state.epicAutoCounter += 1;
-        } while (state.usedEpicCodes.has(`E${pad2(state.epicAutoCounter)}`));
-        resolvedCode = `E${pad2(state.epicAutoCounter)}`;
-      }
-
-      state.usedEpicCodes.add(resolvedCode);
-
-      // Numero d'epic = chiffre du code (E03 -> 3) pour deriver les Features F03.x
-      const epicNumMatch = resolvedCode.match(/^E(\d+)$/);
-      state.currentEpicNumber = epicNumMatch ? parseInt(epicNumMatch[1], 10) : 0;
+      // Auto-numerotation stricte : chaque H1 incremente le compteur
+      state.epicAutoCounter += 1;
+      const resolvedCode = `E${pad2(state.epicAutoCounter)}`;
+      state.currentEpicNumber = state.epicAutoCounter;
 
       state.currentEpic = {
         code: resolvedCode,
-        title: parsedTitle,
+        title: text.trim(),
         features: [],
       };
+      // Reset du compteur Feature pour ce nouvel Epic
+      state.featureCountByEpic.set(resolvedCode, 0);
       state.currentSection = null;
       continue;
     }
 
-    // Niveau 2 (##) = FEATURE
+    // Niveau 2 (##) = FEATURE (toujours, peu importe le contenu du titre)
+    // Le titre est pris tel quel. Le code est TOUJOURS auto-genere
+    // au format F<numEpic>.<numFeature>.
     if (level === 2) {
-      const { code: parsedCode, title: parsedTitle } = parseFeatureHeading(text);
-
-      if (!parsedTitle) {
+      if (!text.trim()) {
         result.warnings.push(
-          `Ligne ignorée : heading H2 sans titre exploitable : "${text.slice(0, 80)}"`
+          `Heading H2 vide ignoré.`
         );
         continue;
       }
 
       flushFeature(state);
 
-      // Resolution du code Feature :
-      // - Si parsedCode fourni : on l'utilise (sauf si l'epic ne correspond pas)
-      // - Sinon : auto-genere F<numEpic>.<numFeatureSuivant>
-      let resolvedCode: string;
-      const epicCodeForChild = state.currentEpic
-        ? state.currentEpic.code
-        : `E${pad2(state.currentEpicNumber || 1)}`;
-
-      if (parsedCode) {
-        resolvedCode = parsedCode;
-      } else {
-        // Auto-numerotation : F<epicNum>.<count+1>
-        const epicNumForFeature = state.currentEpicNumber || 1;
-        const currentCount =
-          state.featureCountByEpic.get(epicCodeForChild) ?? 0;
-        const nextNum = currentCount + 1;
-        resolvedCode = `F${pad2(epicNumForFeature)}.${nextNum}`;
-      }
-
-      // Met a jour le compteur pour cet Epic, en se basant sur le numero
-      // extrait du code resolu (utile aussi quand l'utilisateur fournit un code F03.5
-      // pour que la prochaine Feature auto soit F03.6)
-      const featureNumMatch = resolvedCode.match(/^F\d+\.(\d+)$/);
-      if (featureNumMatch) {
-        const nextNum = parseInt(featureNumMatch[1], 10);
-        const currentCount =
-          state.featureCountByEpic.get(epicCodeForChild) ?? 0;
-        state.featureCountByEpic.set(
-          epicCodeForChild,
-          Math.max(nextNum, currentCount)
+      // Si pas d'Epic ouvert, on cree un Epic auto pour rattacher la Feature
+      // (evite les Features orphelines).
+      if (!state.currentEpic) {
+        state.epicAutoCounter += 1;
+        const autoEpicCode = `E${pad2(state.epicAutoCounter)}`;
+        state.currentEpicNumber = state.epicAutoCounter;
+        state.currentEpic = {
+          code: autoEpicCode,
+          title: "(Epic auto-genere)",
+          features: [],
+        };
+        state.featureCountByEpic.set(autoEpicCode, 0);
+        result.warnings.push(
+          `Feature avant tout Epic : Epic ${autoEpicCode} cree automatiquement.`
         );
       }
 
-      // Derive le code Epic du code Feature : F01.2 -> E01
-      const epicCodeMatch = resolvedCode.match(/^F(\d+)/);
-      const epicCode = epicCodeMatch ? `E${epicCodeMatch[1]}` : "";
+      const epicCode = state.currentEpic.code;
+      const currentCount = state.featureCountByEpic.get(epicCode) ?? 0;
+      const nextNum = currentCount + 1;
+      state.featureCountByEpic.set(epicCode, nextNum);
+
+      const resolvedCode = `F${pad2(state.currentEpicNumber)}.${nextNum}`;
 
       const newFeature: ParsedFeature = {
         code: resolvedCode,
         epicCode,
-        title: parsedTitle,
+        title: text.trim(),
         description: "",
         rules: [],
         scenarios: [],
       };
-      if (state.currentEpic) {
-        state.currentFeature = newFeature;
-      } else {
-        result.orphanFeatures.push(newFeature);
-        result.warnings.push(
-          `Feature orpheline (sans Epic parent) : ${resolvedCode} ${parsedTitle.slice(0, 60)}`
-        );
-      }
+      state.currentFeature = newFeature;
       state.currentSection = null;
       continue;
     }
@@ -496,16 +393,9 @@ export function parseRetroSpecMarkdown(input: string): MarkdownParseResult {
     }
   }
 
-  // Doublon Epic codes
-  const epicCodes = result.epics.map((e) => e.code);
-  const epicDupes = epicCodes.filter((c, i) => epicCodes.indexOf(c) !== i);
-  for (const dup of new Set(epicDupes)) {
-    result.warnings.push(`Code Epic en doublon : ${dup}`);
-  }
-
   if (result.epics.length === 0 && result.orphanFeatures.length === 0) {
     result.warnings.push(
-      "Aucun EPIC ni FEATURE detecte. Verifiez le format du document (headings # EPIC EXX, ## FEATURE FXX.Y)."
+      "Aucun heading detecte. Verifiez que le document utilise '# Titre Epic' et '## Titre Feature'."
     );
   }
 

@@ -251,7 +251,7 @@ export function CreateRunDialog({
               onChange={(e) => setText(e.target.value)}
               rows={12}
               maxLength={200_000}
-              placeholder={`Format Markdown (auto-detection, codes auto-generes) :
+              placeholder={`Format Markdown : # = EPIC, ## = FEATURE. Les codes (E01, F01.1...) sont attribues automatiquement.
 
 ---
 version: retrospec-1
@@ -282,9 +282,14 @@ Permettre aux utilisateurs de se connecter.
 ## Modifier son nom
 
 
-→ Codes auto-generes : E01 'Authentification', F01.1 'Login...', F01.2 'Logout', E02 'Profil...', F02.1 'Modifier...'
+→ Codes attribues automatiquement dans l'ordre :
+   E01 = "Authentification"
+     F01.1 = "Login email/password"
+     F01.2 = "Logout"
+   E02 = "Profil utilisateur"
+     F02.1 = "Modifier son nom"
 
-→ Tu peux aussi forcer un code : '# EPIC E05 : Foo' ou '## FEATURE F02.3 : Bar'
+→ Le titre est pris tel quel : aucune extraction de code dans le titre.
 
 → Format texte legacy aussi supporte : EPIC E01 : ... – FEATURE F01.1 : ... – Description : ... – Règles : ... ; ... – Scénarios : ... (Résultat : ...) ; ...`}
               className="font-mono text-xs flex-1 resize-none"
@@ -292,8 +297,7 @@ Permettre aux utilisateurs de se connecter.
             <div className="flex items-center justify-between text-[10px] text-muted-foreground tabular-nums">
               <span>{text.length} / 200 000 caractères</span>
               <span className="italic">
-                Codes Epic/Feature optionnels : auto-generes selon l&apos;ordre des
-                headings #/##
+                # = Epic, ## = Feature. Codes auto-generes (E01, F01.1...).
               </span>
             </div>
           </div>

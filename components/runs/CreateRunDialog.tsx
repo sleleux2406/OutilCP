@@ -251,45 +251,45 @@ export function CreateRunDialog({
               onChange={(e) => setText(e.target.value)}
               rows={12}
               maxLength={200_000}
-              placeholder={`Format Markdown : # = EPIC, ## = FEATURE. Les codes (E01, F01.1...) sont attribues automatiquement.
+              placeholder={`Format Markdown : # = EPIC, ## = FEATURE. Les codes (E04, F04.2...) sont extraits du titre s'ils sont presents, sinon auto-generes.
 
 ---
 version: retrospec-1
 ---
 
-# Authentification
+# EPIC E04 : Gestion de la Qualite
 
-## Login email/password
+## FEATURE F04.1 : Specifications
 
 ### Description
-Permettre aux utilisateurs de se connecter.
+Permettre la gestion des specs.
 
-### Règles métier
-- Mot de passe min 8 caractères
-- Lock après 5 tentatives
+### Regles metier
+- Versioning obligatoire
+- Audit log
 
-### Scénarios de test
-- Connexion réussie (Résultat : redirection vers /)
-- Mot de passe invalide (Résultat : message d'erreur)
+### Scenarios de test
+- Importer un Markdown (Resultat : RUN cree)
 
-## Logout
+## FEATURE F04.2 : Test Runner Interactif
 
-### Scénarios de test
-- Click logout (Résultat : redirige vers /login)
+### Scenarios de test
+- Marquer OK (Resultat : horodatage)
+- Marquer KO (Resultat : bug auto-cree)
 
-# Profil utilisateur
+# EPIC E05 : Reporting
 
-## Modifier son nom
+## FEATURE F05.1 : Export PDF
 
 
-→ Codes attribues automatiquement dans l'ordre :
-   E01 = "Authentification"
-     F01.1 = "Login email/password"
-     F01.2 = "Logout"
-   E02 = "Profil utilisateur"
-     F02.1 = "Modifier son nom"
+→ Codes extraits du document :
+   E04 = "Gestion de la Qualite"
+     F04.1 = "Specifications"
+     F04.2 = "Test Runner Interactif"
+   E05 = "Reporting"
+     F05.1 = "Export PDF"
 
-→ Le titre est pris tel quel : aucune extraction de code dans le titre.
+→ Si tu omets le code (ex: "# Authentification"), le systeme auto-incremente.
 
 → Format texte legacy aussi supporte : EPIC E01 : ... – FEATURE F01.1 : ... – Description : ... – Règles : ... ; ... – Scénarios : ... (Résultat : ...) ; ...`}
               className="font-mono text-xs flex-1 resize-none"
@@ -297,7 +297,7 @@ Permettre aux utilisateurs de se connecter.
             <div className="flex items-center justify-between text-[10px] text-muted-foreground tabular-nums">
               <span>{text.length} / 200 000 caractères</span>
               <span className="italic">
-                # = Epic, ## = Feature. Codes auto-generes (E01, F01.1...).
+                # = Epic, ## = Feature. Codes du document respectes (E04, F04.2...).
               </span>
             </div>
           </div>

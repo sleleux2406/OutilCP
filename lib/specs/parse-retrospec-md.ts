@@ -120,6 +120,75 @@ function pad2(n: number): string {
   return n < 10 ? `0${n}` : String(n);
 }
 
+/**
+ * Extrait le code Epic E<digits> et le titre nettoye d'un texte de heading H1.
+ *
+ * Reconnait :
+ *   - "EPIC E04 : Gestion de la Qualite"  -> code = "E04", title = "Gestion de la Qualite"
+ *   - "Epic E04 - Gestion"                -> code = "E04", title = "Gestion"
+ *   - "E04 : Gestion"                     -> code = "E04", title = "Gestion"
+ *   - "Gestion de la Qualite"             -> code = null, title = "Gestion de la Qualite"
+ *
+ * Le titre stocke est SANS le prefixe et SANS le code (titre nettoye).
+ * Si pas de code detecte, retourne code = null pour que l'appelant fasse
+ * un fallback auto-incrementation.
+ */
+function extractEpicCodeAndTitle(text: string): { code: string | null; title: string } {
+  const trimmed = text.trim();
+
+  // Strip prefix "EPIC" / "Epic" optionnel (case-insensitive), avec eventuel separateur
+  let remaining = trimmed;
+  const epicPrefix = remaining.match(/^EPIC\b\s*[:\-–—]?\s*(.*)$/i);
+  if (epicPrefix) {
+    remaining = epicPrefix[1].trim();
+  }
+
+  // Cherche un code E<digits> au debut
+  const codeMatch = remaining.match(/^(E\d+)\s*[:\-–—]?\s*(.*)$/i);
+  if (codeMatch) {
+    const code = codeMatch[1].toUpperCase();
+    const cleanTitle = codeMatch[2].trim();
+    // Si le titre est vide apres extraction, on retombe sur le texte original sans le prefix
+    return { code, title: cleanTitle.length > 0 ? cleanTitle : remaining };
+  }
+
+  // Pas de code detecte, on retourne le texte original (sans le prefix EPIC strip)
+  return { code: null, title: remaining };
+}
+
+/**
+ * Extrait le code Feature F<digits>.<digits> et le titre nettoye d'un texte de heading H2.
+ *
+ * Reconnait :
+ *   - "FEATURE F04.2 : Test Runner"   -> code = "F04.2", title = "Test Runner"
+ *   - "Feature F04.2 - Test Runner"   -> code = "F04.2", title = "Test Runner"
+ *   - "F04.2 : Test Runner"           -> code = "F04.2", title = "Test Runner"
+ *   - "F04.2 Test Runner"             -> code = "F04.2", title = "Test Runner"
+ *   - "Test Runner"                   -> code = null, title = "Test Runner"
+ *
+ * Si pas de code detecte, retourne code = null pour fallback auto.
+ */
+function extractFeatureCodeAndTitle(text: string): { code: string | null; title: string } {
+  const trimmed = text.trim();
+
+  let remaining = trimmed;
+  const featPrefix = remaining.match(/^FEATURE\b\s*[:\-–—]?\s*(.*)$/i);
+  if (featPrefix) {
+    remaining = featPrefix[1].trim();
+  }
+
+  // Cherche un code F<digits>.<digits> au debut (la partie .digits est requise pour distinguer
+  // d'un texte commencant par F suivi d'un chiffre)
+  const codeMatch = remaining.match(/^(F\d+\.\d+)\s*[:\-–—]?\s*(.*)$/i);
+  if (codeMatch) {
+    const code = codeMatch[1].toUpperCase();
+    const cleanTitle = codeMatch[2].trim();
+    return { code, title: cleanTitle.length > 0 ? cleanTitle : remaining };
+  }
+
+  return { code: null, title: remaining };
+}
+
 const SECTION_KEYWORDS = {
   description: ["description"],
   rules: ["règles métier", "regles metier", "regles", "rules", "règles", "business rules"],
@@ -282,27 +351,45 @@ export function parseRetroSpecMarkdown(input: string): MarkdownParseResult {
       flushSection(state);
     }
 
-    // Niveau 1 (#) = EPIC (toujours, peu importe le contenu du titre)
-    // Le titre est pris tel quel : si l'utilisateur ecrit "# EPIC E03 : Foo",
-    // le titre devient "EPIC E03 : Foo". Le code est TOUJOURS auto-genere.
+    // Niveau 1 (#) = EPIC (toujours, peu importe le contenu du titre).
+    // On extrait le code "E<digits>" du titre s'il est present (ex: "EPIC E04 : Foo")
+    // et on l'utilise tel quel. Sinon fallback auto-incrementation E01, E02...
     if (level === 1) {
-      if (!text.trim()) {
-        result.warnings.push(
-          `Heading H1 vide ignoré.`
-        );
+      const trimmed = text.trim();
+      if (!trimmed) {
+        result.warnings.push(`Heading H1 vide ignoré.`);
         continue;
       }
 
       flushEpic(state, result);
 
-      // Auto-numerotation stricte : chaque H1 incremente le compteur
-      state.epicAutoCounter += 1;
-      const resolvedCode = `E${pad2(state.epicAutoCounter)}`;
-      state.currentEpicNumber = state.epicAutoCounter;
+      const { code: extractedCode, title: cleanTitle } = extractEpicCodeAndTitle(trimmed);
+
+      let resolvedCode: string;
+      let epicNumber: number;
+
+      if (extractedCode) {
+        // Code present dans le document : on le respecte fidelement
+        resolvedCode = extractedCode;
+        const numMatch = extractedCode.match(/^E(\d+)$/);
+        epicNumber = numMatch ? parseInt(numMatch[1], 10) : 0;
+        // Aligne le compteur auto pour que les Epics suivants sans code
+        // continuent au-dela (E04 -> prochain auto = E05)
+        if (epicNumber > state.epicAutoCounter) {
+          state.epicAutoCounter = epicNumber;
+        }
+      } else {
+        // Pas de code dans le document : auto-incrementation
+        state.epicAutoCounter += 1;
+        epicNumber = state.epicAutoCounter;
+        resolvedCode = `E${pad2(epicNumber)}`;
+      }
+
+      state.currentEpicNumber = epicNumber;
 
       state.currentEpic = {
         code: resolvedCode,
-        title: text.trim(),
+        title: cleanTitle,
         features: [],
       };
       // Reset du compteur Feature pour ce nouvel Epic
@@ -311,21 +398,20 @@ export function parseRetroSpecMarkdown(input: string): MarkdownParseResult {
       continue;
     }
 
-    // Niveau 2 (##) = FEATURE (toujours, peu importe le contenu du titre)
-    // Le titre est pris tel quel. Le code est TOUJOURS auto-genere
-    // au format F<numEpic>.<numFeature>.
+    // Niveau 2 (##) = FEATURE (toujours).
+    // On extrait le code "F<digits>.<digits>" du titre s'il est present
+    // (ex: "FEATURE F04.2 : Test Runner") et on l'utilise tel quel.
+    // Sinon auto-incrementation F<numEpic>.<count+1>.
     if (level === 2) {
-      if (!text.trim()) {
-        result.warnings.push(
-          `Heading H2 vide ignoré.`
-        );
+      const trimmed = text.trim();
+      if (!trimmed) {
+        result.warnings.push(`Heading H2 vide ignoré.`);
         continue;
       }
 
       flushFeature(state);
 
       // Si pas d'Epic ouvert, on cree un Epic auto pour rattacher la Feature
-      // (evite les Features orphelines).
       if (!state.currentEpic) {
         state.epicAutoCounter += 1;
         const autoEpicCode = `E${pad2(state.epicAutoCounter)}`;
@@ -342,16 +428,34 @@ export function parseRetroSpecMarkdown(input: string): MarkdownParseResult {
       }
 
       const epicCode = state.currentEpic.code;
-      const currentCount = state.featureCountByEpic.get(epicCode) ?? 0;
-      const nextNum = currentCount + 1;
-      state.featureCountByEpic.set(epicCode, nextNum);
+      const { code: extractedCode, title: cleanTitle } =
+        extractFeatureCodeAndTitle(trimmed);
 
-      const resolvedCode = `F${pad2(state.currentEpicNumber)}.${nextNum}`;
+      let resolvedCode: string;
+
+      if (extractedCode) {
+        // Code present dans le document : on le respecte fidelement
+        resolvedCode = extractedCode;
+        // Aligne le compteur Feature de l'Epic courant pour eviter les doublons
+        // sur les Features suivantes sans code (F04.2 dans le doc -> prochain auto = F<epicNum>.3)
+        const numMatch = extractedCode.match(/^F\d+\.(\d+)$/);
+        if (numMatch) {
+          const featNum = parseInt(numMatch[1], 10);
+          const currentCount = state.featureCountByEpic.get(epicCode) ?? 0;
+          state.featureCountByEpic.set(epicCode, Math.max(featNum, currentCount));
+        }
+      } else {
+        // Pas de code dans le document : auto-incrementation
+        const currentCount = state.featureCountByEpic.get(epicCode) ?? 0;
+        const nextNum = currentCount + 1;
+        state.featureCountByEpic.set(epicCode, nextNum);
+        resolvedCode = `F${pad2(state.currentEpicNumber)}.${nextNum}`;
+      }
 
       const newFeature: ParsedFeature = {
         code: resolvedCode,
         epicCode,
-        title: text.trim(),
+        title: cleanTitle,
         description: "",
         rules: [],
         scenarios: [],

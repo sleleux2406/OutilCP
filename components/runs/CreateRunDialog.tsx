@@ -251,7 +251,7 @@ export function CreateRunDialog({
               onChange={(e) => setText(e.target.value)}
               rows={12}
               maxLength={200_000}
-              placeholder={`Format Markdown : # = EPIC, ## = FEATURE. Les codes (E04, F04.2...) sont extraits du titre s'ils sont presents, sinon auto-generes.
+              placeholder={`Format Markdown : # = EPIC, ## = FEATURE. Les codes (E04, F04.2...) DOIVENT etre presents dans le titre.
 
 ---
 version: retrospec-1
@@ -282,14 +282,15 @@ Permettre la gestion des specs.
 ## FEATURE F05.1 : Export PDF
 
 
-→ Codes extraits du document :
+→ Codes utilises tels quels (aucune generation automatique) :
    E04 = "Gestion de la Qualite"
      F04.1 = "Specifications"
      F04.2 = "Test Runner Interactif"
    E05 = "Reporting"
      F05.1 = "Export PDF"
 
-→ Si tu omets le code (ex: "# Authentification"), le systeme auto-incremente.
+→ Sans code (ex: "# Authentification"), le heading sera IGNORE avec un warning.
+→ Les codes en doublon (E04 deux fois) sont aussi rejetes.
 
 → Format texte legacy aussi supporte : EPIC E01 : ... – FEATURE F01.1 : ... – Description : ... – Règles : ... ; ... – Scénarios : ... (Résultat : ...) ; ...`}
               className="font-mono text-xs flex-1 resize-none"
@@ -297,7 +298,7 @@ Permettre la gestion des specs.
             <div className="flex items-center justify-between text-[10px] text-muted-foreground tabular-nums">
               <span>{text.length} / 200 000 caractères</span>
               <span className="italic">
-                # = Epic, ## = Feature. Codes du document respectes (E04, F04.2...).
+                # EPIC EXX : ... et ## FEATURE FXX.Y : ... obligatoires
               </span>
             </div>
           </div>

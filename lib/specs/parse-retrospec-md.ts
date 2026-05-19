@@ -113,12 +113,6 @@ const HEADING_RE = /^(#{1,6})\s+(.+?)\s*$/;
 const LIST_ITEM_RE = /^[\-\*+]\s+(.+)$/;
 const SCENARIO_EXPECTED_RE = /^(.*?)\s*\((?:R[ée]sultat|Resultat|Expected)\s*:\s*(.+?)\)\s*$/i;
 
-/**
- * Pad un nombre sur 2 chiffres minimum (1 -> "01", 12 -> "12").
- */
-function pad2(n: number): string {
-  return n < 10 ? `0${n}` : String(n);
-}
 
 /**
  * Extrait le code Epic E<digits> et le titre nettoye d'un texte de heading H1.
@@ -222,12 +216,10 @@ interface ParsingState {
   currentSection: SectionType | null;
   /** Buffer de lignes pour la section en cours */
   sectionBuffer: string[];
-  /** Compteur auto pour les Epics sans code explicite */
-  epicAutoCounter: number;
-  /** Numero d'epic du courant (1-indexed) - sert a deriver F<num>.<x> */
-  currentEpicNumber: number;
-  /** Compteur de features par Epic (cle = code Epic) pour auto-numerotation des Features */
-  featureCountByEpic: Map<string, number>;
+  /** Codes Epic deja vus dans le document (pour detecter les doublons explicites) */
+  seenEpicCodes: Set<string>;
+  /** Codes Feature deja vus dans le document (pour detecter les doublons explicites) */
+  seenFeatureCodes: Set<string>;
 }
 
 function flushSection(state: ParsingState): void {
@@ -328,9 +320,8 @@ export function parseRetroSpecMarkdown(input: string): MarkdownParseResult {
     currentFeature: null,
     currentSection: null,
     sectionBuffer: [],
-    epicAutoCounter: 0,
-    currentEpicNumber: 0,
-    featureCountByEpic: new Map(),
+    seenEpicCodes: new Set(),
+    seenFeatureCodes: new Set(),
   };
 
   for (const line of lines) {
@@ -351,9 +342,10 @@ export function parseRetroSpecMarkdown(input: string): MarkdownParseResult {
       flushSection(state);
     }
 
-    // Niveau 1 (#) = EPIC (toujours, peu importe le contenu du titre).
-    // On extrait le code "E<digits>" du titre s'il est present (ex: "EPIC E04 : Foo")
-    // et on l'utilise tel quel. Sinon fallback auto-incrementation E01, E02...
+    // Niveau 1 (#) = EPIC.
+    // Le code Epic DOIT etre present dans le titre (ex: "EPIC E04 : Foo" ou
+    // "E04 : Foo"). Sinon le heading est rejete avec un warning.
+    // Aucune auto-generation : on respecte strictement les codes du document.
     if (level === 1) {
       const trimmed = text.trim();
       if (!trimmed) {
@@ -361,47 +353,46 @@ export function parseRetroSpecMarkdown(input: string): MarkdownParseResult {
         continue;
       }
 
-      flushEpic(state, result);
-
       const { code: extractedCode, title: cleanTitle } = extractEpicCodeAndTitle(trimmed);
 
-      let resolvedCode: string;
-      let epicNumber: number;
-
-      if (extractedCode) {
-        // Code present dans le document : on le respecte fidelement
-        resolvedCode = extractedCode;
-        const numMatch = extractedCode.match(/^E(\d+)$/);
-        epicNumber = numMatch ? parseInt(numMatch[1], 10) : 0;
-        // Aligne le compteur auto pour que les Epics suivants sans code
-        // continuent au-dela (E04 -> prochain auto = E05)
-        if (epicNumber > state.epicAutoCounter) {
-          state.epicAutoCounter = epicNumber;
-        }
-      } else {
-        // Pas de code dans le document : auto-incrementation
-        state.epicAutoCounter += 1;
-        epicNumber = state.epicAutoCounter;
-        resolvedCode = `E${pad2(epicNumber)}`;
+      if (!extractedCode) {
+        result.warnings.push(
+          `Heading H1 sans code Epic detecte, ignore : "${trimmed.slice(0, 80)}". Format attendu : "# EPIC E04 : Titre" ou "# E04 : Titre".`
+        );
+        // On ferme l'Epic precedent quand meme pour ne pas rattacher des
+        // Features suivantes a un Epic obsolete
+        flushEpic(state, result);
+        state.currentSection = null;
+        continue;
       }
 
-      state.currentEpicNumber = epicNumber;
+      // Detection des doublons explicites (le document ne devrait pas avoir
+      // deux fois le meme code)
+      if (state.seenEpicCodes.has(extractedCode)) {
+        result.warnings.push(
+          `Code Epic "${extractedCode}" deja vu dans le document, ce heading est ignore : "${trimmed.slice(0, 80)}".`
+        );
+        flushEpic(state, result);
+        state.currentSection = null;
+        continue;
+      }
+
+      flushEpic(state, result);
+      state.seenEpicCodes.add(extractedCode);
 
       state.currentEpic = {
-        code: resolvedCode,
+        code: extractedCode,
         title: cleanTitle,
         features: [],
       };
-      // Reset du compteur Feature pour ce nouvel Epic
-      state.featureCountByEpic.set(resolvedCode, 0);
       state.currentSection = null;
       continue;
     }
 
-    // Niveau 2 (##) = FEATURE (toujours).
-    // On extrait le code "F<digits>.<digits>" du titre s'il est present
-    // (ex: "FEATURE F04.2 : Test Runner") et on l'utilise tel quel.
-    // Sinon auto-incrementation F<numEpic>.<count+1>.
+    // Niveau 2 (##) = FEATURE.
+    // Le code Feature DOIT etre present dans le titre (ex: "FEATURE F04.2 : Foo"
+    // ou "F04.2 : Foo"). Sinon le heading est rejete avec un warning.
+    // Aucune auto-generation : on respecte strictement les codes du document.
     if (level === 2) {
       const trimmed = text.trim();
       if (!trimmed) {
@@ -409,51 +400,62 @@ export function parseRetroSpecMarkdown(input: string): MarkdownParseResult {
         continue;
       }
 
-      flushFeature(state);
-
-      // Si pas d'Epic ouvert, on cree un Epic auto pour rattacher la Feature
-      if (!state.currentEpic) {
-        state.epicAutoCounter += 1;
-        const autoEpicCode = `E${pad2(state.epicAutoCounter)}`;
-        state.currentEpicNumber = state.epicAutoCounter;
-        state.currentEpic = {
-          code: autoEpicCode,
-          title: "(Epic auto-genere)",
-          features: [],
-        };
-        state.featureCountByEpic.set(autoEpicCode, 0);
-        result.warnings.push(
-          `Feature avant tout Epic : Epic ${autoEpicCode} cree automatiquement.`
-        );
-      }
-
-      const epicCode = state.currentEpic.code;
       const { code: extractedCode, title: cleanTitle } =
         extractFeatureCodeAndTitle(trimmed);
 
-      let resolvedCode: string;
+      if (!extractedCode) {
+        result.warnings.push(
+          `Heading H2 sans code Feature detecte, ignore : "${trimmed.slice(0, 80)}". Format attendu : "## FEATURE F04.2 : Titre" ou "## F04.2 : Titre".`
+        );
+        flushFeature(state);
+        state.currentSection = null;
+        continue;
+      }
 
-      if (extractedCode) {
-        // Code present dans le document : on le respecte fidelement
-        resolvedCode = extractedCode;
-        // Aligne le compteur Feature de l'Epic courant pour eviter les doublons
-        // sur les Features suivantes sans code (F04.2 dans le doc -> prochain auto = F<epicNum>.3)
-        const numMatch = extractedCode.match(/^F\d+\.(\d+)$/);
-        if (numMatch) {
-          const featNum = parseInt(numMatch[1], 10);
-          const currentCount = state.featureCountByEpic.get(epicCode) ?? 0;
-          state.featureCountByEpic.set(epicCode, Math.max(featNum, currentCount));
-        }
-      } else {
-        // Pas de code dans le document : auto-incrementation
-        const currentCount = state.featureCountByEpic.get(epicCode) ?? 0;
-        const nextNum = currentCount + 1;
-        state.featureCountByEpic.set(epicCode, nextNum);
-        resolvedCode = `F${pad2(state.currentEpicNumber)}.${nextNum}`;
+      if (state.seenFeatureCodes.has(extractedCode)) {
+        result.warnings.push(
+          `Code Feature "${extractedCode}" deja vu dans le document, ce heading est ignore : "${trimmed.slice(0, 80)}".`
+        );
+        flushFeature(state);
+        state.currentSection = null;
+        continue;
+      }
+
+      flushFeature(state);
+
+      // Si pas d'Epic ouvert, on rejette la Feature (pas d'auto-creation d'Epic)
+      if (!state.currentEpic) {
+        result.warnings.push(
+          `Feature ${extractedCode} avant tout Epic : ignoree. Ajoutez d'abord un heading "# EPIC EXX : ...".`
+        );
+        state.currentSection = null;
+        continue;
+      }
+
+      state.seenFeatureCodes.add(extractedCode);
+
+      // Derive le code Epic depuis le code Feature pour le champ epicCode
+      // (utilise par certains traitements en aval). Si la Feature commence
+      // par F04.2 alors epicCode derive = E04. Si l'Epic courant a un autre
+      // code, on garde celui de l'Epic courant pour la coherence d'arbre.
+      const epicCodeMatch = extractedCode.match(/^F(\d+)/);
+      const derivedEpicCode = epicCodeMatch ? `E${epicCodeMatch[1]}` : "";
+      const epicCode = state.currentEpic.code;
+
+      // Warning si le code Feature ne semble pas correspondre a l'Epic courant
+      if (
+        derivedEpicCode &&
+        derivedEpicCode !== epicCode &&
+        // On compare aussi sans padding : F4.2 -> E4 vs E04 doivent matcher
+        derivedEpicCode.replace(/^E0+/, "E") !== epicCode.replace(/^E0+/, "E")
+      ) {
+        result.warnings.push(
+          `Code Feature ${extractedCode} ne correspond pas au code Epic courant ${epicCode}. La Feature est rattachee a ${epicCode}.`
+        );
       }
 
       const newFeature: ParsedFeature = {
-        code: resolvedCode,
+        code: extractedCode,
         epicCode,
         title: cleanTitle,
         description: "",

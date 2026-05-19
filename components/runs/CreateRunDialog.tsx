@@ -58,7 +58,9 @@ export function CreateRunDialog({
   const [preview, setPreview] = useState<ParseResult | null>(null);
   const [selectedEpics, setSelectedEpics] = useState<Set<string>>(new Set());
   const [selectedFeatures, setSelectedFeatures] = useState<Set<string>>(new Set());
-  const [detectedFormat, setDetectedFormat] = useState<"markdown" | "text" | null>(null);
+  const [detectedFormat, setDetectedFormat] = useState<
+    "markers" | "markdown" | "text" | null
+  >(null);
   const [specVersion, setSpecVersion] = useState("v1");
   const [isPending, startTransition] = useTransition();
 
@@ -251,54 +253,57 @@ export function CreateRunDialog({
               onChange={(e) => setText(e.target.value)}
               rows={12}
               maxLength={200_000}
-              placeholder={`Format Markdown : # = EPIC, ## = FEATURE. Les codes (E04, F04.2...) DOIVENT etre presents dans le titre.
+              placeholder={`3 formats supportes (auto-detection). Le format MARQUEURS est recommande.
 
----
-version: retrospec-1
----
+═══ FORMAT MARQUEURS [EPIC] / [FEATURE] / [CAS DE TEST] (recommande) ═══
 
-# EPIC E04 : Gestion de la Qualite
+[EPIC] Gestion de la qualite
 
-## FEATURE F04.1 : Specifications
+[FEATURE] Auto-inscription des collaborateurs
 
 ### Description
-Permettre la gestion des specs.
+Permettre aux nouveaux collaborateurs de s'inscrire.
 
 ### Regles metier
-- Versioning obligatoire
-- Audit log
+- Email professionnel obligatoire
+- Validation par le manager
 
-### Scenarios de test
-- Importer un Markdown (Resultat : RUN cree)
+[CAS DE TEST] Inscription reussie (Resultat : compte cree)
+[CAS DE TEST] Email invalide (Resultat : message d'erreur)
 
-## FEATURE F04.2 : Test Runner Interactif
+[FEATURE] Modification du profil
 
-### Scenarios de test
-- Marquer OK (Resultat : horodatage)
-- Marquer KO (Resultat : bug auto-cree)
+[CAS DE TEST] Mettre a jour son nom (Resultat : nom sauvegarde)
 
-# EPIC E05 : Reporting
+[EPIC] Reporting
 
-## FEATURE F05.1 : Export PDF
+[FEATURE] Export PDF
 
 
-→ Codes utilises tels quels (aucune generation automatique) :
-   E04 = "Gestion de la Qualite"
-     F04.1 = "Specifications"
-     F04.2 = "Test Runner Interactif"
-   E05 = "Reporting"
-     F05.1 = "Export PDF"
+→ Les codes sont AUTO-INCREMENTES par marqueur :
+   E01 = "Gestion de la qualite"
+     F01.1 = "Auto-inscription des collaborateurs"
+     F01.2 = "Modification du profil"
+   E02 = "Reporting"
+     F02.1 = "Export PDF"
 
-→ Sans code (ex: "# Authentification"), le heading sera IGNORE avec un warning.
-→ Les codes en doublon (E04 deux fois) sont aussi rejetes.
+→ Si tu ecris "[FEATURE] F01.1 : Mon titre", le "F01.1 :" est strippe automatiquement.
 
-→ Format texte legacy aussi supporte : EPIC E01 : ... – FEATURE F01.1 : ... – Description : ... – Règles : ... ; ... – Scénarios : ... (Résultat : ...) ; ...`}
+═══ FORMAT MARKDOWN (alternative) ═══
+
+# EPIC E04 : Titre Epic
+## FEATURE F04.1 : Titre Feature
+### Description / Regles metier / Scenarios de test
+
+═══ FORMAT TEXTE legacy ═══
+
+EPIC E01 : ... – FEATURE F01.1 : ... – Description : ... – Règles : ... – Scénarios : ... (Résultat : ...)`}
               className="font-mono text-xs flex-1 resize-none"
             />
             <div className="flex items-center justify-between text-[10px] text-muted-foreground tabular-nums">
               <span>{text.length} / 200 000 caractères</span>
               <span className="italic">
-                # EPIC EXX : ... et ## FEATURE FXX.Y : ... obligatoires
+                Format recommande : [EPIC] / [FEATURE] / [CAS DE TEST] avec codes auto-incrementes
               </span>
             </div>
           </div>
@@ -312,12 +317,18 @@ Permettre la gestion des specs.
                 <span className="text-muted-foreground">Format detecte :</span>
                 <span
                   className={
-                    detectedFormat === "markdown"
-                      ? "inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-300 font-semibold"
-                      : "inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-500/15 text-slate-700 dark:text-slate-300 font-semibold"
+                    detectedFormat === "markers"
+                      ? "inline-flex items-center gap-1 px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold"
+                      : detectedFormat === "markdown"
+                        ? "inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-500/15 text-blue-700 dark:text-blue-300 font-semibold"
+                        : "inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-500/15 text-slate-700 dark:text-slate-300 font-semibold"
                   }
                 >
-                  {detectedFormat === "markdown" ? "Markdown" : "Texte (legacy)"}
+                  {detectedFormat === "markers"
+                    ? "Marqueurs [EPIC]/[FEATURE]"
+                    : detectedFormat === "markdown"
+                      ? "Markdown"
+                      : "Texte (legacy)"}
                 </span>
               </div>
             )}

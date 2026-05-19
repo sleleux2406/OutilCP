@@ -16,6 +16,10 @@ import {
   parseRetroSpecMarkdown,
   looksLikeMarkdown,
 } from "@/lib/specs/parse-retrospec-md";
+import {
+  parseRetroSpecMarkers,
+  looksLikeMarkerFormat,
+} from "@/lib/specs/parse-retrospec-markers";
 
 // ─────────────────────────────────────────────────────────────
 // Server Actions — Upload et création de RUN depuis une rétro-spec
@@ -43,9 +47,9 @@ export type PreviewResult =
   | {
       ok: true;
       parsed: ParseResult;
-      /** Format detecte automatiquement : "markdown" ou "text" */
-      detectedFormat: "markdown" | "text";
-      /** Version extraite du frontmatter Markdown si presente, null sinon */
+      /** Format detecte automatiquement */
+      detectedFormat: "markers" | "markdown" | "text";
+      /** Version extraite du frontmatter si presente, null sinon */
       detectedVersion: string | null;
     }
   | { ok: false; error: "VALIDATION" | "FORBIDDEN" | "RATE_LIMITED" };
@@ -55,9 +59,15 @@ export type PreviewResult =
  * N'écrit rien en base. Utilisé par l'UI pour afficher un aperçu avant
  * confirmation.
  *
- * Auto-detection : si le texte ressemble a du Markdown (contient des headings #),
- * utilise parseRetroSpecMarkdown. Sinon utilise le parseur texte historique.
- * Le frontmatter YAML --- version: xxx --- est extrait automatiquement.
+ * Auto-detection (par priorite) :
+ *   1. MARQUEURS : presence de [EPIC], [FEATURE] ou [CAS DE TEST]
+ *      -> codes E01, E02, F01.1, F01.2... auto-incrementes par marqueur
+ *   2. MARKDOWN : presence de headings # ou ##
+ *      -> codes extraits du titre si presents (E04, F04.2), sinon auto
+ *   3. TEXTE : format legacy "EPIC E01 : ... – FEATURE F01.1 : ..."
+ *
+ * Le frontmatter YAML --- version: xxx --- est extrait automatiquement
+ * pour les formats Markdown et Marqueurs.
  */
 export async function previewSpecAction(
   input: z.input<typeof PreviewSchema>
@@ -74,7 +84,23 @@ export async function previewSpecAction(
   const parsed = PreviewSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "VALIDATION" };
 
-  // Auto-detection format : Markdown si contient des headings ATX
+  // 1. Format MARQUEURS prioritaire : [EPIC] / [FEATURE] / [CAS DE TEST]
+  if (looksLikeMarkerFormat(parsed.data.text)) {
+    const markerResult = parseRetroSpecMarkers(parsed.data.text);
+    return {
+      ok: true,
+      parsed: {
+        epics: markerResult.epics,
+        orphanFeatures: markerResult.orphanFeatures,
+        warnings: markerResult.warnings,
+        counts: markerResult.counts,
+      },
+      detectedFormat: "markers",
+      detectedVersion: markerResult.detectedVersion,
+    };
+  }
+
+  // 2. Format MARKDOWN : headings # / ##
   if (looksLikeMarkdown(parsed.data.text)) {
     const mdResult = parseRetroSpecMarkdown(parsed.data.text);
     return {
@@ -90,6 +116,7 @@ export async function previewSpecAction(
     };
   }
 
+  // 3. Format TEXTE legacy
   const result = parseRetroSpec(parsed.data.text);
   return {
     ok: true,

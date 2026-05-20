@@ -1,3 +1,5 @@
+import type { PrismaClient, Prisma } from "@prisma/client";
+
 /**
  * Detection de chevauchement entre les dates d'un ticket et les conges
  * de son assignee.
@@ -106,7 +108,7 @@ export function detectAssigneeLeaveOverlap(
  * couverte par les tickets (pour optimiser).
  */
 export async function buildLeavesByUserMap(
-  prisma: { userLeave: { findMany: (args: unknown) => Promise<unknown[]> } },
+  prisma: PrismaClient,
   args: {
     userIds: string[];
     /** Date la plus tot a considerer (filtre les conges qui se terminent avant) */
@@ -119,7 +121,7 @@ export async function buildLeavesByUserMap(
   if (args.userIds.length === 0) return result;
 
   // Filtre BDD : on ne charge que les conges qui chevauchent la fenetre demandee
-  const where: Record<string, unknown> = {
+  const where: Prisma.UserLeaveWhereInput = {
     userId: { in: args.userIds },
   };
   if (args.rangeStart && args.rangeEnd) {
@@ -129,10 +131,10 @@ export async function buildLeavesByUserMap(
     ];
   }
 
-  const rows = (await prisma.userLeave.findMany({
+  const rows = await prisma.userLeave.findMany({
     where,
     select: { userId: true, startDate: true, endDate: true },
-  })) as Array<{ userId: string; startDate: Date; endDate: Date }>;
+  });
 
   for (const r of rows) {
     const list = result.get(r.userId) ?? [];

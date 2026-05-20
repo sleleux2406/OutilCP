@@ -57,6 +57,16 @@ export interface KanbanTicket {
    * Module 2.2 : horodatage exact de creation (ISO). Pour affichage detaille.
    */
   createdAt?: string | null;
+  /**
+   * Phase 3 : alerte si le ticket est assigne a un user qui a un conge
+   * couvrant tout ou partie de la periode startDate-endDate.
+   */
+  leaveAlert?: {
+    severity: "full" | "partial";
+    overlapStart: string;
+    overlapEnd: string;
+    overlapDays: number;
+  } | null;
   rollup: {
     totalEstimatedMinutes: number;
     totalLoggedMinutes: number;

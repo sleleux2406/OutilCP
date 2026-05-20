@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { CalendarClock, CheckCircle2, Clock, FlaskConical, Sparkles, User } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, Clock, FlaskConical, Sparkles, User } from "lucide-react";
 import { cn, formatDate, formatDays } from "@/lib/utils";
 import { TICKET_TYPE_META, getPriorityMeta } from "@/lib/tickets/metadata";
 import { isOverBudget } from "@/lib/tickets/types";
@@ -205,6 +205,27 @@ export function TicketCard({ ticket, currentUserId, isOverlay = false }: Props) 
           <CalendarClock className="w-3 h-3" aria-hidden />
           Fin : {formatDate(ticket.endDate)}
         </p>
+      )}
+
+      {/* Phase 3 : alerte si l'assignee a un conge sur la periode du ticket */}
+      {ticket.leaveAlert && (
+        <div
+          className={
+            ticket.leaveAlert.severity === "full"
+              ? "mb-2 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-red-500/15 text-red-700 dark:text-red-300"
+              : "mb-2 inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-orange-500/15 text-orange-700 dark:text-orange-300"
+          }
+          title={
+            ticket.leaveAlert.severity === "full"
+              ? `L'assignee est en conge sur TOUTE la periode du ticket (du ${ticket.leaveAlert.overlapStart} au ${ticket.leaveAlert.overlapEnd}, ${ticket.leaveAlert.overlapDays} jours).`
+              : `L'assignee est en conge ${ticket.leaveAlert.overlapDays} jour(s) sur la periode du ticket (du ${ticket.leaveAlert.overlapStart} au ${ticket.leaveAlert.overlapEnd}).`
+          }
+        >
+          <AlertTriangle className="w-3 h-3" aria-hidden />
+          {ticket.leaveAlert.severity === "full"
+            ? "Conge total"
+            : `Conge partiel (${ticket.leaveAlert.overlapDays}j)`}
+        </div>
       )}
 
       {/* Progress bar (si estimation > 0) */}

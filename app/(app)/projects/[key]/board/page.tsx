@@ -17,6 +17,10 @@ import {
   parseTypeFilter,
 } from "@/lib/tickets/hierarchy";
 import type { KanbanTicket } from "@/lib/tickets/types";
+import {
+  detectAssigneeLeaveOverlap,
+  buildLeavesByUserMap,
+} from "@/lib/leaves/leave-overlap";
 
 interface PageProps {
   params: Promise<{ key: string }>;
@@ -128,7 +132,9 @@ export default async function BoardPage({ params, searchParams }: PageProps) {
         estimatedMinutes: true,
         loggedMinutes: true,
         remainingMinutes: true,
+        startDate: true,
         endDate: true,
+        assigneeId: true,
         isEstimated: true,
         projectId: true,
         createdAt: true,
@@ -200,8 +206,29 @@ export default async function BoardPage({ params, searchParams }: PageProps) {
     testsByTicket.set(ticketId, { total: caseIds.length, passed, failed });
   }
 
+  // Phase 3 : alertes "ticket assigne pendant un conge"
+  // On charge les conges des assignees concernes et on calcule l'overlap.
+  const assigneeIds = Array.from(
+    new Set(
+      rawTickets
+        .filter((t) => t.assigneeId && (t.startDate || t.endDate))
+        .map((t) => t.assigneeId as string)
+    )
+  );
+  const leavesByUser = await buildLeavesByUserMap(prisma, {
+    userIds: assigneeIds,
+  });
+
   const tickets: KanbanTicket[] = rawTickets.map((t) => {
     const rollup = rollups.get(t.id);
+    const leaveAlert = detectAssigneeLeaveOverlap(
+      {
+        startDate: t.startDate,
+        endDate: t.endDate,
+        assigneeId: t.assigneeId,
+      },
+      leavesByUser
+    );
     return {
       id: t.id,
       key: t.key,
@@ -243,6 +270,7 @@ export default async function BoardPage({ params, searchParams }: PageProps) {
       ),
       isEstimated: t.isEstimated,
       testStats: testsByTicket.get(t.id),
+      leaveAlert,
       rollup: rollup
         ? {
             totalEstimatedMinutes: rollup.totalEstimatedMinutes,

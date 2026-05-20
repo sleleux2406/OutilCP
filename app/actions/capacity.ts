@@ -83,13 +83,24 @@ export async function getCapacityViewAction(
 
   const project = await prisma.project.findUnique({
     where: { key: projectKey },
-    select: { id: true, key: true, name: true },
+    select: { id: true, key: true, name: true, parentProjectId: true },
   });
   if (!project) return { ok: false, error: "NOT_FOUND" };
 
-  // 1. Développeurs (rôle DEVELOPER)
+  // Multi-projet : pour la capacite, on prend les developpeurs MEMBRES du
+  // projet (ou de son projet parent si c'est un RUN). Les RUN heritent des
+  // membres du parent.
+  const projectIdForMembers = project.parentProjectId ?? project.id;
+
+  // 1. Developpeurs membres du projet (role DEVELOPER + membership)
   const developers = await prisma.user.findMany({
-    where: { role: "DEVELOPER" },
+    where: {
+      role: "DEVELOPER",
+      deletedAt: null,
+      projectMemberships: {
+        some: { projectId: projectIdForMembers },
+      },
+    },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });
@@ -335,13 +346,22 @@ export async function autoPlaceP1Action(
 
   const project = await prisma.project.findUnique({
     where: { key: projectKey },
-    select: { id: true, key: true, name: true },
+    select: { id: true, key: true, name: true, parentProjectId: true },
   });
   if (!project) return { ok: false, error: "NOT_FOUND" };
 
-  // Charge devs + leaves + holidays
+  // Multi-projet : on filtre les devs par membership (heritage RUN <- parent)
+  const projectIdForMembers = project.parentProjectId ?? project.id;
+
+  // Charge devs membres du projet + leaves + holidays
   const developers = await prisma.user.findMany({
-    where: { role: "DEVELOPER" },
+    where: {
+      role: "DEVELOPER",
+      deletedAt: null,
+      projectMemberships: {
+        some: { projectId: projectIdForMembers },
+      },
+    },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
   });

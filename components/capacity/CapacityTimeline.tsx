@@ -115,6 +115,31 @@ export function CapacityTimeline({
 
   return (
     <div className="flex flex-col flex-1 overflow-hidden">
+      {/* Avertissement si aucun developpeur affecte au projet */}
+      {developersCount === 0 && (
+        <div className="border-b bg-amber-50 dark:bg-amber-950/30 border-amber-200 dark:border-amber-800/50 px-4 py-3">
+          <div className="flex items-start gap-2 text-sm">
+            <AlertTriangle className="h-4 w-4 text-amber-700 dark:text-amber-300 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <p className="font-medium text-amber-900 dark:text-amber-100">
+                Aucun developpeur affecte a ce projet
+              </p>
+              <p className="text-xs text-amber-800 dark:text-amber-200">
+                Pour calculer la capacite, ajoutez au moins un developpeur via{" "}
+                <Link
+                  href={`/projects/${projectKey}/members`}
+                  className="underline font-medium hover:text-amber-700 dark:hover:text-amber-100"
+                >
+                  Gerer les membres
+                </Link>
+                . Les conges des membres bloqueront automatiquement leur
+                disponibilite sur tous leurs projets.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Barre de stats + bouton placement */}
       <div className="flex items-center gap-4 px-4 py-3 border-b bg-muted/30">
         <div className="flex items-center gap-2 text-sm">

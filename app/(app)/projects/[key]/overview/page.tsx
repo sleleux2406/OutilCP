@@ -6,6 +6,10 @@ import { requireRole } from "@/lib/auth";
 import { getProjectRollups } from "@/lib/time-rollup";
 import { PmDashboard } from "@/components/pm/PmDashboard";
 import type { EpicForDashboard, PmKpis } from "@/components/pm/PmDashboard";
+import {
+  detectAssigneeLeaveOverlap,
+  buildLeavesByUserMap,
+} from "@/lib/leaves/leave-overlap";
 
 interface PageProps {
   params: Promise<{ key: string }>;
@@ -27,7 +31,7 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
   });
   if (!project) notFound();
 
-  // Epics + leurs Features + enfants pour comptage bugs/US
+  // Phase 4 : Epics + Features + sous-tickets (US/Task/Bug) avec dates et assignee
   const epicsRaw = await prisma.ticket.findMany({
     where: { projectId: project.id, type: "EPIC" },
     select: {
@@ -43,12 +47,43 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
           key: true,
           title: true,
           status: true,
-          children: { select: { id: true, type: true, status: true } },
+          children: {
+            select: {
+              id: true,
+              key: true,
+              title: true,
+              type: true,
+              status: true,
+              estimatedMinutes: true,
+              loggedMinutes: true,
+              startDate: true,
+              endDate: true,
+              assigneeId: true,
+              assignee: { select: { name: true } },
+            },
+            orderBy: { createdAt: "asc" },
+          },
         },
         orderBy: { createdAt: "asc" },
       },
     },
     orderBy: [{ priority: "asc" }, { createdAt: "asc" }],
+  });
+
+  // Phase 3/4 : conges des assignees pour calculer les alertes
+  const assigneeIds = Array.from(
+    new Set(
+      epicsRaw.flatMap((e) =>
+        e.children.flatMap((f) =>
+          f.children
+            .filter((c) => c.assigneeId && (c.startDate || c.endDate))
+            .map((c) => c.assigneeId as string)
+        )
+      )
+    )
+  );
+  const leavesByUser = await buildLeavesByUserMap(prisma, {
+    userIds: assigneeIds,
   });
 
   const epics: EpicForDashboard[] = epicsRaw.map((e) => ({
@@ -62,7 +97,32 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
       key: f.key,
       title: f.title,
       status: f.status,
-      children: f.children,
+      children: f.children.map((c) => {
+        const leaveAlert = detectAssigneeLeaveOverlap(
+          {
+            startDate: c.startDate,
+            endDate: c.endDate,
+            assigneeId: c.assigneeId,
+          },
+          leavesByUser
+        );
+        return {
+          id: c.id,
+          key: c.key,
+          title: c.title,
+          type: c.type as "FEATURE" | "BUG" | "USER_STORY" | "TASK" | "EPIC",
+          status: c.status,
+          estimatedMinutes: c.estimatedMinutes,
+          loggedMinutes: c.loggedMinutes,
+          assigneeName: c.assignee?.name ?? null,
+          leaveAlert: leaveAlert
+            ? {
+                severity: leaveAlert.severity,
+                overlapDays: leaveAlert.overlapDays,
+              }
+            : null,
+        };
+      }),
     })),
   }));
 

@@ -149,6 +149,23 @@ export function parseTypeFilter(raw: string | null | undefined): TicketType[] | 
 }
 
 /**
+ * Parse le parametre URL `?technical=...` pour le filtre Technique/Fonctionnel.
+ * Valeurs reconnues :
+ *   - "true"  -> uniquement les tickets isTechnical = true
+ *   - "false" -> uniquement les tickets isTechnical = false
+ *   - null / autre -> pas de filtre (tous)
+ */
+export function parseTechnicalFilter(
+  raw: string | null | undefined
+): boolean | null {
+  if (!raw) return null;
+  const lowered = raw.trim().toLowerCase();
+  if (lowered === "true" || lowered === "1") return true;
+  if (lowered === "false" || lowered === "0") return false;
+  return null;
+}
+
+/**
  * Une Feature est "à estimer" si elle respecte DEUX conditions :
  *   1. Aucun enfant Task ou Bug n'existe (rien de concret saisi)
  *   2. Son estimation initiale n'a pas été renseignée manuellement (estimatedMinutes = 0)

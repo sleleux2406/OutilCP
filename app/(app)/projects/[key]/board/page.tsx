@@ -11,10 +11,15 @@ import { CreateRunButton } from "@/components/runs/CreateRunButton";
 import { SubProjectsList } from "@/components/runs/SubProjectsList";
 import { KanbanTypeFilter } from "@/components/kanban/KanbanTypeFilter";
 import {
+  KanbanTechnicalFilter,
+  getCurrentTechnicalState,
+} from "@/components/kanban/KanbanTechnicalFilter";
+import {
   KANBAN_VISIBLE_TYPES_BY_ROLE,
   KANBAN_TYPE_PRESETS,
   isFeatureNeedingEstimation,
   parseTypeFilter,
+  parseTechnicalFilter,
 } from "@/lib/tickets/hierarchy";
 import type { KanbanTicket } from "@/lib/tickets/types";
 import {
@@ -24,7 +29,7 @@ import {
 
 interface PageProps {
   params: Promise<{ key: string }>;
-  searchParams: Promise<{ types?: string }>;
+  searchParams: Promise<{ types?: string; technical?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -35,7 +40,7 @@ export async function generateMetadata({ params }: PageProps) {
 export default async function BoardPage({ params, searchParams }: PageProps) {
   const session = await requireAuth();
   const { key } = await params;
-  const { types: rawTypes } = await searchParams;
+  const { types: rawTypes, technical: rawTechnical } = await searchParams;
 
   const project = await prisma.project.findUnique({
     where: { key },
@@ -98,7 +103,7 @@ export default async function BoardPage({ params, searchParams }: PageProps) {
   // aussi les bugs des sous-projets RUN enfants (visibilité pour les DEV).
   const isRootProject = project.parentProjectId === null;
   const includesBugs = visibleTypes.includes("BUG");
-  const whereClause =
+  const baseWhere =
     isRootProject && includesBugs
       ? {
           OR: [
@@ -118,6 +123,14 @@ export default async function BoardPage({ params, searchParams }: PageProps) {
           type: { in: visibleTypes },
         };
 
+  // Filtre Technique / Fonctionnel (issue du parametre URL ?technical=true|false)
+  // S'applique a tous les tickets remontes. Si la valeur est null, pas de filtre.
+  const technicalFilter = parseTechnicalFilter(rawTechnical);
+  const whereClause =
+    technicalFilter === null
+      ? baseWhere
+      : { AND: [baseWhere, { isTechnical: technicalFilter }] };
+
   const [rawTickets, rollups, testExecStats] = await Promise.all([
     prisma.ticket.findMany({
       where: whereClause,
@@ -136,6 +149,7 @@ export default async function BoardPage({ params, searchParams }: PageProps) {
         endDate: true,
         assigneeId: true,
         isEstimated: true,
+        isTechnical: true,
         projectId: true,
         createdAt: true,
         assignee: { select: { id: true, name: true } },
@@ -269,6 +283,7 @@ export default async function BoardPage({ params, searchParams }: PageProps) {
         t.estimatedMinutes
       ),
       isEstimated: t.isEstimated,
+      isTechnical: t.isTechnical,
       testStats: testsByTicket.get(t.id),
       leaveAlert,
       rollup: rollup
@@ -328,6 +343,11 @@ export default async function BoardPage({ params, searchParams }: PageProps) {
         <div className="ml-auto flex items-center gap-2">
           {session.role === "ADMIN" && (
             <KanbanTypeFilter currentPreset={currentPreset} />
+          )}
+          {(session.role === "ADMIN" || session.role === "PRODUCT_OWNER") && (
+            <KanbanTechnicalFilter
+              current={getCurrentTechnicalState(rawTechnical)}
+            />
           )}
           <CreateTicketButton projectId={project.id} userRole={session.role} />
           <CreateBugButton projectId={project.id} />

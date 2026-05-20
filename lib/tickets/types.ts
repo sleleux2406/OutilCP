@@ -29,6 +29,8 @@ export interface KanbanTicket {
   needsEstimation?: boolean;
   /** False si la tâche est une TODO non chiffrée (ne compte pas dans l'agrégation). */
   isEstimated?: boolean;
+  /** True si la Feature/Task est marquee comme technique (refactor, infra, dette). */
+  isTechnical?: boolean;
   testStats?: { passed: number; failed: number; total: number };
   /**
    * Module 1.1 : version actuelle des specs sur ce ticket (Feature uniquement).

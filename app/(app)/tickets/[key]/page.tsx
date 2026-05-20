@@ -201,6 +201,7 @@ export default async function TicketPage({ params }: PageProps) {
               ),
               assigneeId: ticket.assigneeId,
               startDate: ticket.startDate,
+              isTechnical: ticket.isTechnical,
             }}
             canEdit={canEditStatus}
           />

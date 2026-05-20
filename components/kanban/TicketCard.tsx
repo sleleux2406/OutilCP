@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { AlertTriangle, CalendarClock, CheckCircle2, Clock, FlaskConical, Sparkles, User } from "lucide-react";
+import { AlertTriangle, CalendarClock, CheckCircle2, Clock, FlaskConical, Sparkles, User, Wrench } from "lucide-react";
 import { cn, formatDate, formatDays } from "@/lib/utils";
 import { TICKET_TYPE_META, getPriorityMeta } from "@/lib/tickets/metadata";
 import { isOverBudget } from "@/lib/tickets/types";
@@ -128,6 +128,19 @@ export function TicketCard({ ticket, currentUserId, isOverlay = false }: Props) 
           >
             <CheckCircle2 className="w-3 h-3" aria-hidden />
             TODO · Hors estimation
+          </span>
+        </div>
+      )}
+
+      {/* Badge Technique — Feature ou Task marquee comme technique */}
+      {ticket.isTechnical && (
+        <div className="mb-2">
+          <span
+            className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded bg-cyan-500/15 text-cyan-700 dark:text-cyan-300"
+            title="Ticket technique (refactor, infrastructure, dette technique)"
+          >
+            <Wrench className="w-3 h-3" aria-hidden />
+            Technique
           </span>
         </div>
       )}

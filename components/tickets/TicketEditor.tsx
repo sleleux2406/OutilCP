@@ -51,6 +51,8 @@ export interface TicketEditorInitial {
   hasAggregatingChildren: boolean;
   assigneeId: string | null;
   startDate: Date | null;
+  /** Marqueur technique (FEATURE/TASK uniquement) */
+  isTechnical: boolean;
 }
 
 interface Props {
@@ -85,6 +87,7 @@ export function TicketEditor({ ticket, canEdit }: Props) {
   );
   const [assigneeId, setAssigneeId] = useState<string>(ticket.assigneeId ?? "");
   const [startDate, setStartDate] = useState<string>(toISODate(ticket.startDate));
+  const [isTechnical, setIsTechnical] = useState(ticket.isTechnical);
   const [assignableUsers, setAssignableUsers] = useState<
     { id: string; name: string; role: string }[]
   >([]);
@@ -113,6 +116,7 @@ export function TicketEditor({ ticket, canEdit }: Props) {
       );
       setAssigneeId(ticket.assigneeId ?? "");
       setStartDate(toISODate(ticket.startDate));
+      setIsTechnical(ticket.isTechnical);
     }
   }, [ticket, open]);
 
@@ -170,6 +174,10 @@ export function TicketEditor({ ticket, canEdit }: Props) {
         estimatedMinutes: minutes,
         remainingMinutes: remainingValue,
         assigneeId: assigneeId || null,
+        // Marqueur technique : envoye uniquement si FEATURE/TASK (sinon ignore serveur)
+        ...(ticket.type === "FEATURE" || ticket.type === "TASK"
+          ? { isTechnical }
+          : {}),
         ...(startDateValue !== undefined ? { startDate: startDateValue } : {}),
       });
 
@@ -374,6 +382,28 @@ export function TicketEditor({ ticket, canEdit }: Props) {
                 ))}
               </Select>
             </div>
+
+            {/* Marqueur technique : visible uniquement pour FEATURE/TASK */}
+            {(ticket.type === "FEATURE" || ticket.type === "TASK") && (
+              <div className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="edit-technical"
+                  checked={isTechnical}
+                  onChange={(e) => setIsTechnical(e.target.checked)}
+                  className="h-4 w-4 rounded border-input"
+                />
+                <Label
+                  htmlFor="edit-technical"
+                  className="text-sm font-normal cursor-pointer"
+                >
+                  Ticket technique
+                  <span className="text-xs text-muted-foreground ml-2">
+                    (refactor, infra, dette technique)
+                  </span>
+                </Label>
+              </div>
+            )}
 
             <DialogFooter>
               <Button

@@ -4,9 +4,15 @@ import { ChevronLeft, KanbanSquare, ClipboardCheck } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { listProjectTestsAction } from "@/app/actions/project-tests";
 import { ProjectTestsView } from "@/components/tests/ProjectTestsView";
+import { parseTechnicalFilter } from "@/lib/tickets/hierarchy";
+import {
+  KanbanTechnicalFilter,
+  getCurrentTechnicalState,
+} from "@/components/kanban/KanbanTechnicalFilter";
 
 interface PageProps {
   params: Promise<{ key: string }>;
+  searchParams: Promise<{ technical?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -14,11 +20,19 @@ export async function generateMetadata({ params }: PageProps) {
   return { title: `Cahier de tests ${key}` };
 }
 
-export default async function ProjectTestsPage({ params }: PageProps) {
+export default async function ProjectTestsPage({
+  params,
+  searchParams,
+}: PageProps) {
   const session = await requireAuth();
   const { key } = await params;
+  const { technical: rawTechnical } = await searchParams;
+  const technicalFilter = parseTechnicalFilter(rawTechnical);
 
-  const result = await listProjectTestsAction({ projectKey: key });
+  const result = await listProjectTestsAction({
+    projectKey: key,
+    ...(technicalFilter !== null ? { technical: technicalFilter } : {}),
+  });
 
   if (!result.ok) {
     if (result.error === "NOT_FOUND") notFound();
@@ -60,13 +74,18 @@ export default async function ProjectTestsPage({ params }: PageProps) {
             </Link>
           </span>
         )}
-        <Link
-          href={`/projects/${result.project.key}/board`}
-          className="ml-auto inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border hover:bg-accent"
-        >
-          <KanbanSquare className="h-4 w-4" />
-          Vue Kanban
-        </Link>
+        <div className="ml-auto flex items-center gap-2">
+          <KanbanTechnicalFilter
+            current={getCurrentTechnicalState(rawTechnical)}
+          />
+          <Link
+            href={`/projects/${result.project.key}/board`}
+            className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border hover:bg-accent"
+          >
+            <KanbanSquare className="h-4 w-4" />
+            Vue Kanban
+          </Link>
+        </div>
       </header>
 
       <ProjectTestsView

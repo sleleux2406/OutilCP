@@ -77,6 +77,8 @@ export type ListProjectTestsResult =
 
 const ListSchema = z.object({
   projectKey: z.string().min(1),
+  /** Filtre 'true' = uniquement technique, 'false' = uniquement fonctionnel, undefined = tous */
+  technical: z.boolean().optional(),
 });
 
 export async function listProjectTestsAction(
@@ -101,11 +103,17 @@ export async function listProjectTestsAction(
   if (!project) return { ok: false, error: "NOT_FOUND" };
 
   // Charge tous les tickets testables du projet (FEATURE + USER_STORY) avec leurs TestCases
+  const technicalFilter = parsed.data.technical;
   const parents = await prisma.ticket.findMany({
     where: {
       projectId: project.id,
       type: { in: [TicketType.FEATURE, TicketType.USER_STORY] },
       testCases: { some: {} }, // au moins un test case
+      // Filtre Technique / Fonctionnel : applique uniquement aux Features
+      // (les User Stories ne sont jamais marquees comme techniques)
+      ...(technicalFilter !== undefined && technicalFilter !== null
+        ? { isTechnical: technicalFilter }
+        : {}),
     },
     select: {
       id: true,

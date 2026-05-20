@@ -109,6 +109,9 @@ const CreateTicketSchema = z
     // Défaut true = chiffrée. Si false, c'est une TODO qui ne compte pas
     // dans l'agrégation parent.
     isEstimated: z.boolean().default(true),
+    // Marqueur ticket technique (refactor, infra, dette). S'applique aux
+    // FEATURE et TASK uniquement (validation cote app, ignoree pour les autres types).
+    isTechnical: z.boolean().default(false),
   })
   // Validation : EPIC ne doit pas avoir de parentId, les autres types doivent en avoir un
   .refine(
@@ -222,6 +225,11 @@ export async function createTicketAction(
         // Si TODO (isEstimated=false), l'estimation doit être 0 de toute façon
         // pour cohérence métier (on ne demande pas de jours à une TODO)
         isEstimated: data.isEstimated,
+        // Marqueur technique : applique uniquement si type FEATURE ou TASK
+        isTechnical:
+          data.type === "FEATURE" || data.type === "TASK"
+            ? data.isTechnical
+            : false,
         status: TicketStatus.BACKLOG,
         parentId: parent?.id ?? null,
         path: parent ? buildPath(parent.path, parent.id) : "/",
@@ -288,6 +296,8 @@ const UpdateTicketSchema = z.object({
   // Reste à faire : null pour réinitialiser (retour au fallback), sinon >= 0
   remainingMinutes: z.number().int().min(0).max(60 * 24 * 30).nullable().optional(),
   assigneeId: z.string().cuid().nullable().optional(),
+  // Marqueur technique (FEATURE/TASK uniquement, ignore pour les autres types)
+  isTechnical: z.boolean().optional(),
   // Date de début (jour ouvré, format ISO YYYY-MM-DD côté client).
   // null = retirer la planification. undefined = pas de changement.
   startDate: z
@@ -359,6 +369,7 @@ export async function updateTicketAction(
       status: true,
       type: true,
       loggedMinutes: true,
+      isTechnical: true,
       // Planning : nécessaire pour le décalage start → end
       startDate: true,
       endDate: true,
@@ -462,6 +473,16 @@ export async function updateTicketAction(
   if (data.assigneeId !== undefined && data.assigneeId !== ticket.assigneeId) {
     changed.assigneeId = { from: ticket.assigneeId, to: data.assigneeId };
     updateData.assigneeId = data.assigneeId;
+  }
+
+  // Marqueur technique : applicable seulement aux FEATURE et TASK
+  if (
+    data.isTechnical !== undefined &&
+    data.isTechnical !== ticket.isTechnical &&
+    (ticket.type === "FEATURE" || ticket.type === "TASK")
+  ) {
+    changed.isTechnical = { from: ticket.isTechnical, to: data.isTechnical };
+    updateData.isTechnical = data.isTechnical;
   }
 
   // ─── startDate ─────────────────────────────────────────────

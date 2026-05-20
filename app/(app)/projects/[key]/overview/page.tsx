@@ -6,6 +6,11 @@ import { requireRole } from "@/lib/auth";
 import { getProjectRollups } from "@/lib/time-rollup";
 import { PmDashboard } from "@/components/pm/PmDashboard";
 import type { EpicForDashboard, PmKpis } from "@/components/pm/PmDashboard";
+import { parseTechnicalFilter } from "@/lib/tickets/hierarchy";
+import {
+  KanbanTechnicalFilter,
+  getCurrentTechnicalState,
+} from "@/components/kanban/KanbanTechnicalFilter";
 import {
   detectAssigneeLeaveOverlap,
   buildLeavesByUserMap,
@@ -13,6 +18,7 @@ import {
 
 interface PageProps {
   params: Promise<{ key: string }>;
+  searchParams: Promise<{ technical?: string }>;
 }
 
 export async function generateMetadata({ params }: PageProps) {
@@ -20,16 +26,23 @@ export async function generateMetadata({ params }: PageProps) {
   return { title: `Pilotage ${key}` };
 }
 
-export default async function ProjectOverviewPage({ params }: PageProps) {
+export default async function ProjectOverviewPage({
+  params,
+  searchParams,
+}: PageProps) {
   // [A01] Page réservée aux rôles de pilotage
   await requireRole(["ADMIN", "PRODUCT_OWNER"]);
   const { key } = await params;
+  const { technical: rawTechnical } = await searchParams;
 
   const project = await prisma.project.findUnique({
     where: { key },
     select: { id: true, key: true, name: true },
   });
   if (!project) notFound();
+
+  // Filtre Technique / Fonctionnel issu du parametre URL
+  const technicalFilter = parseTechnicalFilter(rawTechnical);
 
   // Phase 4 : Epics + Features + sous-tickets (US/Task/Bug) avec dates et assignee
   const epicsRaw = await prisma.ticket.findMany({
@@ -41,7 +54,10 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
       status: true,
       priority: true,
       children: {
-        where: { type: "FEATURE" },
+        where:
+          technicalFilter === null
+            ? { type: "FEATURE" }
+            : { type: "FEATURE", isTechnical: technicalFilter },
         select: {
           id: true,
           key: true,
@@ -163,20 +179,25 @@ export default async function ProjectOverviewPage({ params }: PageProps) {
         <span className="text-muted-foreground/40">/</span>
         <h1 className="text-lg font-semibold">{project.name}</h1>
         <span className="font-mono text-xs text-muted-foreground">{project.key}</span>
-        <Link
-          href={`/projects/${project.key}/board`}
-          className="ml-auto inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border hover:bg-accent"
-        >
-          <KanbanSquare className="h-4 w-4" />
-          Vue Kanban
-        </Link>
-        <Link
-          href={`/projects/${project.key}/capacity`}
-          className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border hover:bg-accent"
-        >
-          <CalendarDays className="h-4 w-4" />
-          Capacité
-        </Link>
+        <div className="ml-auto flex items-center gap-2">
+          <KanbanTechnicalFilter
+            current={getCurrentTechnicalState(rawTechnical)}
+          />
+          <Link
+            href={`/projects/${project.key}/board`}
+            className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border hover:bg-accent"
+          >
+            <KanbanSquare className="h-4 w-4" />
+            Vue Kanban
+          </Link>
+          <Link
+            href={`/projects/${project.key}/capacity`}
+            className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border hover:bg-accent"
+          >
+            <CalendarDays className="h-4 w-4" />
+            Capacité
+          </Link>
+        </div>
       </header>
 
       <PmDashboard project={project} epics={epics} rollups={rollups} kpis={kpis} />

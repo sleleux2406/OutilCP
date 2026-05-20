@@ -70,6 +70,7 @@ export function CreateTicketDialog({
   const [priority, setPriority] = useState(3);
   const [estimatedDays, setEstimatedDays] = useState("");
   const [isEstimated, setIsEstimated] = useState(true);
+  const [isTechnical, setIsTechnical] = useState(false);
   const [assigneeId, setAssigneeId] = useState<string>("");
   const [assignableUsers, setAssignableUsers] = useState<
     { id: string; name: string; role: string }[]
@@ -103,6 +104,7 @@ export function CreateTicketDialog({
     setParentId(lockedParent?.id ?? defaultParentId ?? null);
     setPriority(3);
     setEstimatedDays("");
+    setIsTechnical(false);
     setAssigneeId("");
   };
 
@@ -135,6 +137,9 @@ export function CreateTicketDialog({
         estimatedMinutes: type === "EPIC" ? 0 : isEstimated ? cappedMinutes : 0,
         assigneeId: assigneeId || null,
         isEstimated,
+        // Marqueur technique : applique uniquement aux FEATURE/TASK
+        isTechnical:
+          type === "FEATURE" || type === "TASK" ? isTechnical : false,
       });
       if (!res.ok) {
         const msg = {
@@ -348,6 +353,28 @@ export function CreateTicketDialog({
                   </button>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Marqueur Technique : visible uniquement pour FEATURE et TASK */}
+          {(type === "FEATURE" || type === "TASK") && (
+            <div className="flex items-center gap-2 pt-1">
+              <input
+                type="checkbox"
+                id="ticket-technical"
+                checked={isTechnical}
+                onChange={(e) => setIsTechnical(e.target.checked)}
+                className="h-4 w-4 rounded border-input"
+              />
+              <Label
+                htmlFor="ticket-technical"
+                className="text-sm font-normal cursor-pointer"
+              >
+                Ticket technique
+                <span className="text-xs text-muted-foreground ml-2">
+                  (refactor, infra, dette technique)
+                </span>
+              </Label>
             </div>
           )}
 

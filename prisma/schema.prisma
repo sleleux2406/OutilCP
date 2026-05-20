@@ -73,6 +73,8 @@ model User {
   sessions        Session[]
   attachments     Attachment[]
   leaves          UserLeave[]
+  // Multi-projet : les projets ou ce user est membre
+  projectMemberships ProjectMember[]
 
   @@index([role])
   @@index([deletedAt])
@@ -117,8 +119,35 @@ model Project {
   // Plan de capacité courant pour ce projet (1 plan max, écrasé à chaque clic)
   capacityPlan CapacityPlan?
 
+  // Membres du projet (multi-projet) : permet d'affecter explicitement des
+  // utilisateurs a un projet. Les ADMIN voient tous les projets sans avoir
+  // besoin d'etre membre. Les autres roles ne voient que les projets ou ils
+  // sont membres.
+  members ProjectMember[]
+
   @@index([key])
   @@index([parentProjectId])
+}
+
+// ─────────────────────────────────────────────────────────────
+// ProjectMember : association User <-> Project pour le multi-projet.
+// Un user peut etre membre de N projets. Un projet peut avoir N membres.
+// L'ADMIN voit tous les projets sans devoir etre liste ici (bypass).
+// ─────────────────────────────────────────────────────────────
+model ProjectMember {
+  id        String  @id @default(cuid())
+  projectId String
+  project   Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // Date d'affectation, pour audit/traçabilité
+  addedAt   DateTime @default(now())
+  // Utilisateur qui a effectue l'affectation
+  addedById String?
+
+  @@unique([projectId, userId])
+  @@index([userId])
+  @@index([projectId])
 }
 
 // ─────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import Link from "next/link";
-import { ChevronLeft, LayoutDashboard, CalendarDays, ClipboardCheck } from "lucide-react";
+import { ChevronLeft, LayoutDashboard, CalendarDays, ClipboardCheck, Users as UsersIcon } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { requireAuth } from "@/lib/auth";
 import { getProjectRollups } from "@/lib/time-rollup";
@@ -44,6 +44,22 @@ export default async function BoardPage({ params, searchParams }: PageProps) {
     },
   });
   if (!project) notFound();
+
+  // Multi-projet : verifie que l'utilisateur a acces au projet
+  // ADMIN bypass, autres roles doivent etre membres explicites.
+  // Pour les sous-projets RUN : l'acces est autorise si l'utilisateur est
+  // membre du projet PARENT (les RUN heritent des permissions).
+  if (session.role !== "ADMIN") {
+    const projectIdToCheck = project.parentProjectId ?? project.id;
+    const membership = await prisma.projectMember.findFirst({
+      where: {
+        projectId: projectIdToCheck,
+        userId: session.userId,
+      },
+      select: { id: true },
+    });
+    if (!membership) notFound();
+  }
 
   // Filtrage Kanban selon le rôle :
   //   - DEVELOPER : voit Tasks + Bugs (niveau exécution)
@@ -319,6 +335,16 @@ export default async function BoardPage({ params, searchParams }: PageProps) {
             >
               <ClipboardCheck className="h-4 w-4" />
               Cahier de tests
+            </Link>
+          )}
+          {canPilot && (
+            <Link
+              href={`/projects/${project.key}/members`}
+              className="inline-flex items-center gap-1.5 text-sm px-3 py-1.5 rounded-md border hover:bg-accent"
+              title="Gérer les membres du projet"
+            >
+              <UsersIcon className="h-4 w-4" />
+              Membres
             </Link>
           )}
         </div>

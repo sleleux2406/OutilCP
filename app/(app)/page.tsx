@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
-import { ArrowRight, FolderKanban } from "lucide-react";
+import { ArrowRight, FolderKanban, Lock } from "lucide-react";
 import { requireAuth } from "@/lib/auth";
 import { CreateProjectButton } from "@/components/projects/CreateProjectButton";
+import { listVisibleProjectIdsForUser } from "@/app/actions/project-members";
 
 export const metadata = {
   title: "Projets",
@@ -10,8 +11,21 @@ export const metadata = {
 
 export default async function HomePage() {
   const session = await requireAuth();
+
+  // Multi-projet : ADMIN voit tout, autres roles ne voient que leurs projets affectes
+  const visibleProjectIds = await listVisibleProjectIdsForUser(
+    session.userId,
+    session.role
+  );
+
   const projects = await prisma.project.findMany({
-    where: { parentProjectId: null }, // projets racine seulement (les RUN sont accessibles depuis leur parent)
+    where: {
+      parentProjectId: null, // projets racine seulement
+      // Si liste de IDs (non-ADMIN), on filtre. Si "all" (ADMIN), pas de filtre.
+      ...(visibleProjectIds === "all"
+        ? {}
+        : { id: { in: visibleProjectIds } }),
+    },
     orderBy: { createdAt: "desc" },
     select: {
       id: true,
@@ -22,20 +36,24 @@ export default async function HomePage() {
     },
   });
 
+  const isFiltered = visibleProjectIds !== "all";
+
   return (
     <main className="container py-8 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Projets</h1>
           <p className="text-sm text-muted-foreground">
-            Choisissez un projet pour accéder au Kanban et au Test Runner.
+            {isFiltered
+              ? "Vous voyez les projets auxquels vous êtes affecté."
+              : "Choisissez un projet pour accéder au Kanban et au Test Runner."}
           </p>
         </div>
         <CreateProjectButton userRole={session.role} />
       </div>
 
       {projects.length === 0 ? (
-        <EmptyState />
+        isFiltered ? <NoMembershipState /> : <EmptyState />
       ) : (
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {projects.map((p) => (
@@ -74,8 +92,20 @@ function EmptyState() {
       <FolderKanban className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
       <h3 className="font-semibold">Aucun projet pour le moment</h3>
       <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
-        Lancez <code className="bg-muted px-1 rounded">pnpm db:seed</code> pour générer un
-        projet de démonstration.
+        Cliquez sur &quot;Nouveau projet&quot; pour créer le premier.
+      </p>
+    </div>
+  );
+}
+
+function NoMembershipState() {
+  return (
+    <div className="border border-dashed rounded-lg p-12 text-center">
+      <Lock className="h-10 w-10 text-muted-foreground mx-auto mb-3" />
+      <h3 className="font-semibold">Aucun projet accessible</h3>
+      <p className="text-sm text-muted-foreground mt-1 max-w-md mx-auto">
+        Vous n&apos;êtes affecté à aucun projet pour l&apos;instant. Demandez à
+        un Administrateur ou un Product Owner de vous ajouter à un projet.
       </p>
     </div>
   );
